@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- 10.0.20348 is the lowest Windows SDK ref exposing GraphicsCaptureSession.IsBorderRequired.
+         SupportedOSPlatformVersion stays at 19041 so the binary still loads on Win10 1903+,
+         where the WGC path works but always draws the yellow capture border. -->
+    <TargetFramework>net10.0-windows10.0.20348.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Argus.Server</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- No MessagePack: SignalR carries JSON control messages only. Frames go over a
+         dedicated binary WebSocket (/ws/frames) to avoid base64 inflation. -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Argus.Server.Tests" />
+  </ItemGroup>
+
+  <!-- The console-inject helper must exist as its own executable: AttachConsole is process-wide,
+       so running it in-process would detach this server from its own console and kill its logging.
+       ReferenceOutputAssembly=false because we need the .exe on disk, not an assembly reference. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Argus.ConsoleInject\Argus.ConsoleInject.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyConsoleInjectHelper" AfterTargets="Build">
+    <ItemGroup>
+      <ConsoleInjectOutput Include="$(MSBuildThisFileDirectory)..\Argus.ConsoleInject\bin\$(Configuration)\net10.0-windows\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ConsoleInjectOutput)"
+          DestinationFolder="$(OutDir)ConsoleInject\%(RecursiveDir)"
+          SkipUnchangedFiles="true"
+          Condition="'@(ConsoleInjectOutput)' != ''" />
+  </Target>
+
+</Project>

@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Angular / Node
+node_modules/
+.angular/
+dist/
+
+# Angular's production build target - generated, never edited by hand
+src/Argus.Server/wwwroot/
+
+# Local runtime state
+*.log
+.work/
+
+.temp-*

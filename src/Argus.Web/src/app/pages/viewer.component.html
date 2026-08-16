@@ -1,0 +1,204 @@
+<section #viewer class="viewer">
+  <header class="bar">
+    <button type="button" class="ghost back" (click)="back()" aria-label="Back to dashboard">‹</button>
+
+    <div class="ident">
+      <span class="status-dot" [class]="statusClass()"></span>
+      <span class="name truncate">{{ title() }}</span>
+      <span class="sub muted">
+        {{ statusLabel() }}
+        @if (status(); as s) {
+          @if (s.actualFps > 0) {
+            · {{ s.actualFps }} fps
+          }
+        }
+      </span>
+    </div>
+
+    <div class="bar-controls">
+      <!-- The zoom slider is the one control that is not a button: it is a continuous value, and a
+           dialog per notch would be worse than the slider it replaced. -->
+      <div class="zoom-row">
+        <input
+          id="zoom"
+          type="range"
+          min="0.25"
+          max="4"
+          step="0.05"
+          [value]="zoom()"
+          (input)="onZoomInput($any($event.target).value)"
+          [attr.aria-label]="'Zoom ' + (zoom() * 100).toFixed(0) + ' percent'"
+        />
+        <span class="zoom-value muted">{{ (zoom() * 100).toFixed(0) }}%</span>
+      </div>
+
+      <button
+        type="button"
+        class="icon"
+        (click)="openMenu('quality')"
+        [attr.aria-label]="'Quality: ' + qualityLabels[quality()]"
+        [title]="'Quality: ' + qualityLabels[quality()]"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <line x1="6" y1="20" x2="6" y2="14" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="18" y1="20" x2="18" y2="10" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        class="icon"
+        (click)="openMenu('size')"
+        aria-label="Resize the window"
+        title="Resize the window"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      </button>
+
+      <button type="button" class="icon" (click)="resetZoom()" aria-label="Reset zoom" title="Reset zoom">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+        </svg>
+      </button>
+
+      <!-- Only meaningful in full screen: outside it the stage is a fixed slot in the page, so
+           there is no screen to fit to. -->
+      @if (isFullscreen()) {
+        <button
+          type="button"
+          class="icon"
+          [class.on]="fitted()"
+          [attr.aria-pressed]="fitted()"
+          (click)="fitToScreen()"
+          aria-label="Fit to screen"
+          title="Fit to screen"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="4 14 10 14 10 20" />
+            <polyline points="20 10 14 10 14 4" />
+            <line x1="14" y1="10" x2="21" y2="3" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          </svg>
+        </button>
+      }
+
+      <button
+        type="button"
+        class="icon"
+        [class.on]="mouseMode()"
+        [attr.aria-pressed]="mouseMode()"
+        (click)="toggleMouseMode()"
+        [attr.aria-label]="mouseMode() ? 'Mouse mode on' : 'Mouse mode off'"
+        [title]="mouseMode() ? 'Mouse mode: on' : 'Mouse mode: off'"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        class="icon"
+        (click)="toggleFullscreen()"
+        [attr.aria-label]="isFullscreen() ? 'Exit full screen' : 'Full screen'"
+        [title]="isFullscreen() ? 'Exit full screen' : 'Full screen'"
+      >
+        @if (isFullscreen()) {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+          </svg>
+        } @else {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+        }
+      </button>
+
+      <button
+        type="button"
+        class="icon accent"
+        (click)="focusApp()"
+        aria-label="Focus the app"
+        title="Focus the app"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="2.5" />
+          <line x1="12" y1="1" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="1" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="23" y2="12" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  @if (menu(); as which) {
+    <div class="overlay" (click)="closeMenu()">
+      <div class="sheet" (click)="$event.stopPropagation()">
+        <h2>{{ which === 'quality' ? 'Quality' : 'Window size' }}</h2>
+
+        @if (which === 'quality') {
+          @for (level of qualities; track level) {
+            <button
+              type="button"
+              class="choice"
+              [class.chosen]="level === quality()"
+              (click)="pickQuality(level)"
+            >
+              {{ qualityLabels[level] }}
+            </button>
+          }
+        } @else {
+          @for (size of sizes; track size.value) {
+            <button type="button" class="choice" (click)="pickSize(size.value)">{{ size.label }}</button>
+          }
+        }
+      </div>
+    </div>
+  }
+
+  @if (lastKeyResult(); as problem) {
+    <div class="banner bad strip">{{ problem }}</div>
+  }
+
+  <div
+    #stage
+    class="stage"
+    [class.pannable]="canPan() && !mouseMode()"
+    [class.mousing]="mouseMode()"
+    (wheel)="onWheel($event)"
+    (pointerdown)="onPointerDown($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp($event)"
+    (pointercancel)="onPointerUp($event)"
+    (pointerleave)="onPointerUp($event)"
+    (contextmenu)="onContextMenu($event)"
+  >
+    <argus-frame-view [handle]="handle()" [zoom]="zoom()" [panX]="panX()" [panY]="panY()" />
+  </div>
+
+  <!-- A real input, kept off-screen: focusing it is what raises the soft keyboard on a phone,
+       and it gives beforeinput events for soft keyboards that report no usable key codes. -->
+  <input
+    #keyboardSink
+    class="keyboard-sink"
+    type="text"
+    autocomplete="off"
+    autocapitalize="off"
+    autocorrect="off"
+    spellcheck="false"
+    aria-label="Keyboard input for the streamed app"
+    [attr.tabindex]="sendKeys() ? 0 : -1"
+    (keydown)="onKeyDown($event)"
+    (keyup)="onKeyUp($event)"
+    (beforeinput)="onBeforeInput($event)"
+    (input)="clearKeyboardSink()"
+  />
+</section>

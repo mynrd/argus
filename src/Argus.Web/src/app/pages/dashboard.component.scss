@@ -1,0 +1,415 @@
+.toolbar {
+  padding: 0.6rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.run label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.run input {
+  flex: 1;
+  min-width: 8rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  min-height: 36px;
+}
+
+.run button {
+  min-height: 36px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.run-error {
+  margin: 0.5rem 0 0;
+}
+
+/* ------------------------------------------------------------------- browse */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the sticky topbar, which sits at 20. */
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 520px);
+  /* Caps at the viewport so the list scrolls rather than the dialog running off the screen. */
+  max-height: min(70vh, 560px);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.picker-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker-bar button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 0.5rem;
+  border-color: transparent;
+}
+
+.picker-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  direction: rtl;
+  text-align: left;
+}
+
+.picker-error {
+  margin: 0.5rem 0.6rem 0;
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  padding: 0.4rem 0.5rem;
+  min-height: 38px;
+  font-size: 0.85rem;
+}
+
+.entry .icon {
+  flex: none;
+  font-size: 0.9rem;
+}
+
+.picker-empty {
+  padding: 1rem 0.6rem;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.page {
+  padding: 1rem;
+  flex: 1;
+}
+
+.empty {
+  max-width: 30rem;
+  margin: 4rem auto;
+  text-align: center;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
+}
+
+/* auto-fill + minmax reflows on its own: 4-5 columns on a desktop, 2 on a tablet, 1 on a phone,
+   with no breakpoint list to keep in sync. */
+.grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.tile-link {
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  min-width: 0;
+}
+
+.tile:hover {
+  border-color: var(--border-strong);
+}
+
+.tile:active {
+  transform: scale(0.995);
+}
+
+.preview {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
+}
+
+.labels {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.sub {
+  font-size: 0.75rem;
+}
+
+/* Over the top-right of the preview, where they are reachable without hunting through the meta
+   row. Opaque background rather than a tint: the frame underneath is arbitrary pixels, and an
+   outline icon that lands on a white window is invisible otherwise. */
+.tile-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 1;
+  display: flex;
+  gap: 0.2rem;
+}
+
+.tile-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-color: var(--border-strong);
+  opacity: 0.9;
+}
+
+.tile-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tile-icon:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.tile-icon.danger:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.note {
+  font-size: 0.72rem;
+  padding: 0 0.7rem 0.6rem;
+}
+
+/* --------------------------------------------------------------- available */
+
+.available {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.available-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.available-head h2 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.available-head .count {
+  font-size: 0.78rem;
+  flex: 1;
+}
+
+.available-head button {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  align-self: center;
+}
+
+.none {
+  font-size: 0.85rem;
+}
+
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+
+.app-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding-right: 0.35rem;
+}
+
+/* No preview here on purpose: these are not attached, so there is no stream to show and
+   rendering one would mean capturing every open window just to fill the list. */
+.app-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+.app-main .info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-main .add {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.app-main:hover .add {
+  color: var(--accent);
+}
+
+.app-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.app-actions button {
+  min-height: 30px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.app-actions .danger:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(100%, 340px);
+  padding: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.sheet h2 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.sheet p {
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+/* The destructive action is the only red thing on the page, so it cannot be hit by habit. */
+.danger-solid {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.danger-solid:hover:not(:disabled) {
+  filter: brightness(1.1);
+  background: var(--bad);
+}
+
+@media (max-width: 560px) {
+  .toolbar {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .page {
+    padding: 0.6rem;
+  }
+
+  .grid {
+    gap: 0.6rem;
+  }
+}
