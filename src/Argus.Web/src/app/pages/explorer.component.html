@@ -1,0 +1,84 @@
+<section class="page">
+  <header class="head">
+    <h1>Explorer</h1>
+    <p class="muted sub">Files on the watched PC. Open one in an app over there.</p>
+  </header>
+
+  <!-- Drives and the handful of folders worth one tap, always visible so you can jump without
+       climbing back up the tree. -->
+  <nav class="drives">
+    @for (root of roots(); track root.path) {
+      <button
+        type="button"
+        class="drive"
+        [class.current]="root.path === listing()?.path"
+        (click)="open(root)"
+      >
+        {{ root.name }}
+      </button>
+    }
+  </nav>
+
+  <div class="crumb">
+    <button type="button" class="ghost" (click)="goUp()" [disabled]="atRoot()" aria-label="Up one folder">
+      ↑
+    </button>
+    <button type="button" class="ghost" (click)="goRoot()" [disabled]="atRoot()">This PC</button>
+    <span class="path truncate">{{ listing()?.label ?? 'Loading…' }}</span>
+    <button type="button" class="ghost" (click)="refresh()">Refresh</button>
+  </div>
+
+  @if (error(); as problem) {
+    <p class="banner bad">{{ problem }}</p>
+  }
+
+  @if (listing()?.error; as problem) {
+    <p class="banner warn">{{ problem }}</p>
+  }
+
+  @if (loading()) {
+    <p class="muted none">Loading…</p>
+  } @else {
+    <ul class="list">
+      @for (entry of entries(); track entry.path) {
+        <li class="row" [class.folder]="entry.isDirectory">
+          <button
+            type="button"
+            class="name"
+            (click)="open(entry)"
+            [disabled]="!entry.isDirectory"
+            [attr.aria-label]="entry.isDirectory ? 'Open folder ' + entry.name : entry.name"
+          >
+            <span class="glyph">{{ entry.isDirectory ? '▸' : '' }}</span>
+            <span class="label truncate">{{ entry.name }}</span>
+            @if (extension(entry); as ext) {
+              <span class="ext muted">{{ ext }}</span>
+            }
+          </button>
+
+          <div class="actions">
+            <!-- Folders have no default association to honour, so they only get the app list. -->
+            @if (!entry.isDirectory) {
+              <button type="button" class="ghost" (click)="openDefault(entry, $event)">Open</button>
+            }
+            <button type="button" class="ghost" (click)="openPicker(entry, $event)">Open with</button>
+          </div>
+        </li>
+      } @empty {
+        <li class="muted none">This folder is empty.</li>
+      }
+    </ul>
+  }
+</section>
+
+@if (picker(); as target) {
+  <div class="overlay" (click)="closePicker()">
+    <div class="sheet" (click)="$event.stopPropagation()">
+      <h2 class="truncate">Open {{ target.entry.name }} with</h2>
+
+      @for (app of pickerApps(); track app.key) {
+        <button type="button" class="choice" (click)="pickApp(app)">{{ app.label }}</button>
+      }
+    </div>
+  </div>
+}

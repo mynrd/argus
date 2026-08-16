@@ -1,0 +1,16 @@
+{
+  "/hubs": {
+    "target": "http://127.0.0.1:5227",
+    "secure": false,
+    "ws": true
+  },
+  "/ws": {
+    "target": "http://127.0.0.1:5227",
+    "secure": false,
+    "ws": true
+  },
+  "/api": {
+    "target": "http://127.0.0.1:5227",
+    "secure": false
+  }
+}

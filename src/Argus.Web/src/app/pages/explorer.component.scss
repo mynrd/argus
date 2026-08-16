@@ -1,0 +1,185 @@
+.page {
+  padding: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.head .sub {
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0.75rem;
+}
+
+.drives {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.drive {
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  background: var(--surface);
+}
+
+.drive.current {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.crumb button {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-color: transparent;
+  white-space: nowrap;
+}
+
+.path {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  /* Long paths matter at their tail, not their head - keep the folder you are in visible. */
+  direction: rtl;
+  text-align: left;
+}
+
+.banner {
+  margin: 0 0 0.6rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  padding: 0.4rem 0.5rem;
+  min-height: 38px;
+  font-size: 0.85rem;
+}
+
+/* A file's name is not a button in any useful sense - dim the affordance rather than the text. */
+.name:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.glyph {
+  flex: none;
+  width: 0.8rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+}
+
+.row.folder .label {
+  font-weight: 500;
+}
+
+.ext {
+  flex: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+}
+
+.actions {
+  display: flex;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.actions button {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.none {
+  font-size: 0.85rem;
+  padding: 0.75rem 0.5rem;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the app shell's sticky topbar, which sits at 20. */
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: min(100%, 320px);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.sheet h2 {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 0.25rem;
+  min-width: 0;
+}
+
+.choice {
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 0.6rem;
+  }
+
+  /* The name gets the width; the two action buttons keep their tap targets. */
+  .actions button {
+    padding: 0.25rem 0.45rem;
+  }
+}

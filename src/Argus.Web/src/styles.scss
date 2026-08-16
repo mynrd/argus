@@ -1,0 +1,165 @@
+/* Argus global styles. Dark-first: this is a monitoring surface that often sits open on a
+   second screen or a phone at night, and light chrome around live screenshots is distracting. */
+
+:root {
+  --bg: #0b0e14;
+  --surface: #141922;
+  --surface-raised: #1c2330;
+  --surface-sunken: #080a0f;
+  --border: #262e3d;
+  --border-strong: #3a465c;
+
+  --text: #e6edf3;
+  --text-muted: #8b96a8;
+
+  --accent: #4c9aff;
+  --accent-dim: #2c5da8;
+
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --idle: #6e7681;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  --tap-target: 44px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* Stops iOS rubber-banding the whole page while pinch-zooming a stream. */
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.85rem;
+  min-height: var(--tap-target);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--border);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+button.ghost {
+  background: transparent;
+}
+
+select {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  min-height: var(--tap-target);
+}
+
+input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+  height: var(--tap-target);
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.status-dot.streaming { background: var(--ok); }
+.status-dot.starting  { background: var(--accent); }
+.status-dot.stalled   { background: var(--warn); }
+.status-dot.minimised { background: var(--idle); }
+.status-dot.closed    { background: var(--bad); }
+
+.muted {
+  color: var(--text-muted);
+}
+
+.banner {
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  border: 1px solid transparent;
+}
+
+.banner.warn {
+  background: rgba(210, 153, 34, 0.12);
+  border-color: rgba(210, 153, 34, 0.4);
+  color: #f0c674;
+}
+
+.banner.bad {
+  background: rgba(248, 81, 73, 0.12);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: #ff9492;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

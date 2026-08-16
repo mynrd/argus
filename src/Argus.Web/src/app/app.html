@@ -1,0 +1,30 @@
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/dashboard">
+      <span class="eye" aria-hidden="true"></span>
+      <span class="name">Argus</span>
+    </a>
+
+    <nav class="tabs">
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/explorer" routerLinkActive="active">Explorer</a>
+    </nav>
+
+    <div class="agent" [class.offline]="!argus.agentOnline()">
+      <span
+        class="status-dot"
+        [class.streaming]="argus.agentOnline()"
+        [class.closed]="!argus.agentOnline()"
+      ></span>
+      <span class="agent-label">{{ argus.agentOnline() ? 'Agent online' : 'Agent offline' }}</span>
+    </div>
+  </header>
+
+  @if (argus.lastError(); as error) {
+    <div class="banner bad global-error">{{ error }}</div>
+  }
+
+  <main>
+    <router-outlet />
+  </main>
+</div>
