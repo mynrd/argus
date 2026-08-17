@@ -241,6 +241,72 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         Assert.False(string.IsNullOrWhiteSpace(result.Reason));
     }
 
+    /// <summary>
+    /// Drives the wheel the whole way the browser does - hub, router, injector, SendInput - and
+    /// asserts Windows accepted the event. It cannot see whether the app visibly scrolled, but it
+    /// tells apart "our plumbing dropped it" from "Windows sent it somewhere else".
+    /// </summary>
+    [Fact]
+    public async Task A_wheel_scroll_is_accepted_by_the_host()
+    {
+        // Character Map, for the same reason as the close test: its own instance, nothing to lose,
+        // and a scrollable grid. Scrolling a window picked off the desktop could scroll the
+        // developer's own editor.
+        var charmapPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System), "charmap.exe");
+        if (!File.Exists(charmapPath)) return;
+
+        using var app = Process.Start(new ProcessStartInfo(charmapPath) { UseShellExecute = true });
+        Assert.NotNull(app);
+
+        try
+        {
+            var target = await WaitForWindowAsync(app!.Id, TimeSpan.FromSeconds(20));
+            if (target is null) return;
+
+            await using var hub = BuildHub();
+            await hub.StartAsync();
+
+            var attached = await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+            Assert.NotNull(attached);
+
+            var scrolled = await hub.InvokeAsync<SendKeyResponse>("SendMouse", new
+            {
+                windowId = target.Handle.ToString(),
+                action = 4,      // MouseAction.Scroll
+                button = 0,
+                x = 0.5,
+                y = 0.5,
+                delta = -240,    // two notches towards the user
+            });
+
+            Assert.True(scrolled.Delivered, scrolled.Reason ?? "no reason given");
+
+            // A zero delta is not a scroll and must not be reported as one failing to arrive.
+            var empty = await hub.InvokeAsync<SendKeyResponse>("SendMouse", new
+            {
+                windowId = target.Handle.ToString(),
+                action = 4,
+                button = 0,
+                x = 0.5,
+                y = 0.5,
+                delta = 0,
+            });
+
+            Assert.True(empty.Delivered, empty.Reason ?? "no reason given");
+
+            await hub.InvokeAsync("Detach", target.Handle);
+        }
+        finally
+        {
+            try
+            {
+                if (!app!.HasExited) app.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException) { }
+        }
+    }
+
     [Fact]
     public async Task Closing_an_attached_app_is_reported_to_the_dashboard()
     {

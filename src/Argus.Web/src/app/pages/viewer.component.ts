@@ -116,6 +116,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   private pendingScroll: { notches: number; clientX: number; clientY: number } | null = null;
   private scrollFrame = 0;
+  private scrollRepeat?: ReturnType<typeof setInterval>;
 
   constructor() {
     // Subscribing must be reactive, not a one-shot in ngOnInit. Opening a viewer URL directly
@@ -161,6 +162,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
     // Leaving the page mid-drag would otherwise strand a held mouse button on the host.
     this.abortMouseGesture();
     this.cancelPendingScroll();
+    this.stopScrolling();
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     window.removeEventListener('resize', this.onViewportResize);
     const handle = this.handle();
@@ -424,6 +426,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.mouseMode.set(next);
     this.abortMouseGesture();
     this.cancelPendingScroll();
+    // The buttons leave the DOM with the mode, so their pointerup may never arrive.
+    this.stopScrolling();
 
     if (!next) return;
 
@@ -582,6 +586,41 @@ export class ViewerComponent implements OnInit, OnDestroy {
     );
   }
 
+  // --------------------------------------------------------- scroll buttons
+
+  /**
+   * Scrolls the host from a button instead of the wheel.
+   *
+   * Held down it repeats, because one notch per tap is not a way to get down a long page. The
+   * first notch is sent immediately so a quick tap still does something.
+   */
+  protected startScrolling(direction: 1 | -1): void {
+    this.stopScrolling();
+    this.scrollHost(direction);
+    this.scrollRepeat = setInterval(() => this.scrollHost(direction), SCROLL_REPEAT_MS);
+  }
+
+  protected stopScrolling(): void {
+    if (this.scrollRepeat === undefined) return;
+
+    clearInterval(this.scrollRepeat);
+    this.scrollRepeat = undefined;
+  }
+
+  /**
+   * Sent at the middle of the frame: a button press has no cursor position of its own, and the
+   * middle is inside whatever the window's main scrollable area is.
+   */
+  private scrollHost(direction: 1 | -1): void {
+    void this.dispatchMouseNormalised(
+      MouseAction.Scroll,
+      MouseButton.Left,
+      0.5,
+      0.5,
+      direction * BUTTON_SCROLL_NOTCHES * WHEEL_DELTA,
+    );
+  }
+
   private cancelPendingScroll(): void {
     if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
     this.scrollFrame = 0;
@@ -603,12 +642,23 @@ export class ViewerComponent implements OnInit, OnDestroy {
     if (!view) return;
 
     const point = view.normalise(clientX, clientY);
+    await this.dispatchMouseNormalised(action, button, point.x, point.y, delta);
+  }
+
+  /** Takes 0..1 fractions of the frame, for the callers that have no screen point to start from. */
+  private async dispatchMouseNormalised(
+    action: MouseAction,
+    button: MouseButton,
+    x: number,
+    y: number,
+    delta = 0,
+  ): Promise<void> {
     const result = await this.argus.sendMouse({
       windowId: String(this.handle()),
       action,
       button,
-      x: point.x,
-      y: point.y,
+      x,
+      y,
       delta,
     });
 
@@ -725,6 +775,10 @@ const WHEEL_DELTA = 120;
 
 /** Pixels of deltaY that count as one notch on a device that reports in pixels. */
 const NOTCH_PIXELS = 100;
+
+/** Notches per press of a scroll button, and how often a held button sends another. */
+const BUTTON_SCROLL_NOTCHES = 3;
+const SCROLL_REPEAT_MS = 200;
 
 /**
  * A wheel event's deltaY in notches, sign-corrected for Windows.
