@@ -68,6 +68,7 @@ export class ArgusService {
 
   async start(): Promise<void> {
     if (this.hub) return;
+    this.disposed = false;
 
     this.hub = new HubConnectionBuilder()
       .withUrl(`${this.origin}/hubs/argus`)
@@ -108,6 +109,45 @@ export class ArgusService {
 
     await this.connect();
     this.startHeartbeatWatch();
+  }
+
+  /**
+   * Drops both connections and forgets everything they told us.
+   *
+   * Locking has to do this rather than only hiding the UI: a live hub is a live keyboard and mouse
+   * on the host, and the frame socket keeps the desktop on screen behind whatever is drawn on top.
+   * The server refuses both without a session anyway - this stops the client retrying forever.
+   */
+  stop(): void {
+    if (!this.hub && !this.socket) return;
+    this.disposed = true;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
+
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
+
+    this.socket?.close();
+    this.socket = undefined;
+    this.socketClientId = '';
+
+    const hub = this.hub;
+    this.hub = undefined;
+    void hub?.stop();
+
+    this.clientId = '';
+    this.connected.set(false);
+    this.framesSocketOpen.set(false);
+    this.agentOnline.set(false);
+    this.lastHeartbeat.set(0);
+    this.windows.set([]);
+    this.statuses.set(new Map());
+    this.lastError.set(null);
   }
 
   private async connect(): Promise<void> {

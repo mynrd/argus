@@ -2,6 +2,7 @@ using Argus.Server.Capture;
 using Argus.Server.Hubs;
 using Argus.Server.Input;
 using Argus.Server.Interop;
+using Argus.Server.Security;
 using Argus.Server.Services;
 using Argus.Server.Streaming;
 using Argus.Server.Windows;
@@ -24,6 +25,7 @@ builder.Services.AddSignalR(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 
+builder.Services.AddSingleton<SessionGuard>();
 builder.Services.AddSingleton<ClientRegistry>();
 builder.Services.AddSingleton<CaptureManager>();
 builder.Services.AddSingleton<SelectionStore>();
@@ -51,9 +53,14 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment()) app.UseCors("dev");
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
+
+// Before the hub and the frame socket are mapped, or a locked viewer still reaches them.
+app.UseSessionGate();
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.MapSessionEndpoints();
 app.MapHub<ArgusHub>("/hubs/argus");
 app.MapFrameSocket();
 
@@ -95,5 +102,12 @@ capture.StatusChanged += update => _ = hub.Clients.All.SendAsync("WindowStatus",
 
 var startupLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("startup");
 startupLog.LogInformation("Argus listening on {Urls} ({Note})", string.Join(", ", urls), bindingNote);
+
+if (!app.Services.GetRequiredService<SessionGuard>().Required)
+{
+    startupLog.LogWarning(
+        "No password set - anyone who can reach this port can drive this desktop. "
+        + "Set Argus:Password in appsettings.json or the ARGUS_PASSWORD environment variable.");
+}
 
 app.Run();

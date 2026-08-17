@@ -1,0 +1,70 @@
+/* Covers the shell completely: whatever was on screen is a live view of someone's desktop, and a
+   translucent lock would still show it. */
+.lock {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.panel {
+  width: min(24rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.5rem;
+}
+
+.mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.mark .eye {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  position: relative;
+}
+
+.mark .eye::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+h1 {
+  font-size: 1.15rem;
+  text-align: center;
+}
+
+p {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+input {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  min-height: var(--tap-target);
+  width: 100%;
+}
+
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

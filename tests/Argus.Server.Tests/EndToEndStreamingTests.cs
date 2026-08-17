@@ -19,9 +19,24 @@ namespace Argus.Server.Tests;
 [Trait("Category", "EndToEnd")]
 public sealed class EndToEndStreamingTests : IAsyncLifetime
 {
+    /// <summary>
+    /// The server under test is locked, like a real one. Every connection here therefore carries a
+    /// session cookie, which is also what proves the gate lets the browser's own traffic through.
+    /// </summary>
+    private const string Password = "end-to-end-password";
+
     private Process? _server;
     private string _baseUrl = "";
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private readonly CookieContainer _cookies = new();
+    private readonly HttpClient _http;
+
+    public EndToEndStreamingTests()
+    {
+        _http = new HttpClient(new HttpClientHandler { CookieContainer = _cookies })
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+        };
+    }
 
     public async Task InitializeAsync()
     {
@@ -40,6 +55,8 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         startInfo.ArgumentList.Add(serverDll);
         startInfo.Environment["ARGUS_URLS"] = _baseUrl;
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        // Overrides whatever appsettings.json ships, so the test does not depend on that value.
+        startInfo.Environment["ARGUS_PASSWORD"] = Password;
         // Keep the test run from stomping on the developer's real saved selection.
         startInfo.Environment["Argus__SelectionPath"] =
             Path.Combine(Path.GetTempPath(), $"argus-test-selection-{Guid.NewGuid():N}.json");
@@ -50,7 +67,8 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         _ = _server!.StandardOutput.ReadToEndAsync();
         _ = _server.StandardError.ReadToEndAsync();
 
-        await WaitForHealthAsync();
+        await WaitForServerAsync();
+        await UnlockAsync();
     }
 
     public Task DisposeAsync()
@@ -78,22 +96,39 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_client_without_a_session_is_refused_the_host()
+    {
+        // A fresh client, so it carries none of the cookies InitializeAsync collected.
+        using var stranger = new HttpClient();
+
+        var api = await stranger.GetAsync($"{_baseUrl}/api/windows");
+        Assert.Equal(HttpStatusCode.Unauthorized, api.StatusCode);
+
+        var negotiate = await stranger.PostAsync($"{_baseUrl}/hubs/argus/negotiate?negotiateVersion=1", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, negotiate.StatusCode);
+
+        using var socket = new ClientWebSocket();
+        await Assert.ThrowsAsync<WebSocketException>(() => socket.ConnectAsync(
+            new Uri($"{_baseUrl.Replace("http://", "ws://")}/ws/frames?clientId=stranger"),
+            CancellationToken.None));
+
+        // The lock's own endpoint has to keep answering, or there would be no way to unlock.
+        var session = await stranger.GetAsync($"{_baseUrl}/api/session");
+        Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    }
+
+    [Fact]
     public async Task Attaching_a_window_streams_frames_to_a_subscribed_client()
     {
         var target = PickTargetWindow();
         if (target is null) return;   // headless machine - nothing to stream
 
-        await using var hub = new HubConnectionBuilder()
-            .WithUrl($"{_baseUrl}/hubs/argus")
-            .Build();
+        await using var hub = BuildHub();
 
         await hub.StartAsync();
         Assert.NotNull(hub.ConnectionId);
 
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(
-            new Uri($"{_baseUrl.Replace("http://", "ws://")}/ws/frames?clientId={hub.ConnectionId}"),
-            CancellationToken.None);
+        using var socket = await ConnectFrameSocketAsync(hub.ConnectionId);
 
         await using var reader = new FrameReader(socket);
 
@@ -128,13 +163,10 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         var target = PickTargetWindow();
         if (target is null) return;
 
-        await using var hub = new HubConnectionBuilder().WithUrl($"{_baseUrl}/hubs/argus").Build();
+        await using var hub = BuildHub();
         await hub.StartAsync();
 
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(
-            new Uri($"{_baseUrl.Replace("http://", "ws://")}/ws/frames?clientId={hub.ConnectionId}"),
-            CancellationToken.None);
+        using var socket = await ConnectFrameSocketAsync(hub.ConnectionId);
 
         await using var reader = new FrameReader(socket);
         await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
@@ -163,13 +195,10 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         var target = PickTargetWindow();
         if (target is null) return;
 
-        await using var hub = new HubConnectionBuilder().WithUrl($"{_baseUrl}/hubs/argus").Build();
+        await using var hub = BuildHub();
         await hub.StartAsync();
 
-        using var socket = new ClientWebSocket();
-        await socket.ConnectAsync(
-            new Uri($"{_baseUrl.Replace("http://", "ws://")}/ws/frames?clientId={hub.ConnectionId}"),
-            CancellationToken.None);
+        using var socket = await ConnectFrameSocketAsync(hub.ConnectionId);
 
         await using var reader = new FrameReader(socket);
         await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
@@ -190,7 +219,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     [Fact]
     public async Task Sending_a_key_to_an_unattached_window_is_reported_as_undelivered()
     {
-        await using var hub = new HubConnectionBuilder().WithUrl($"{_baseUrl}/hubs/argus").Build();
+        await using var hub = BuildHub();
         await hub.StartAsync();
 
         var result = await hub.InvokeAsync<SendKeyResponse>(
@@ -231,7 +260,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
             var target = await WaitForWindowAsync(app!.Id, TimeSpan.FromSeconds(20));
             if (target is null) return;   // never showed a window on this machine
 
-            await using var hub = new HubConnectionBuilder().WithUrl($"{_baseUrl}/hubs/argus").Build();
+            await using var hub = BuildHub();
 
             var closed = new TaskCompletionSource<WindowStatusUpdate>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
@@ -287,7 +316,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     [Fact]
     public async Task Window_list_is_returned_over_the_hub()
     {
-        await using var hub = new HubConnectionBuilder().WithUrl($"{_baseUrl}/hubs/argus").Build();
+        await using var hub = BuildHub();
         await hub.StartAsync();
 
         var windows = await hub.InvokeAsync<List<HubWindow>>("ListWindows");
@@ -305,7 +334,12 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     private static WindowInfo? PickTargetWindow() =>
         WindowEnumerator.Enumerate().FirstOrDefault(w => w.Width > 300 && w.Height > 300);
 
-    private async Task WaitForHealthAsync()
+    /// <summary>
+    /// Readiness is checked on /api/session rather than /api/health, because health is behind the
+    /// lock and answers 401 until this test has a session - which it cannot get before the server
+    /// is listening.
+    /// </summary>
+    private async Task WaitForServerAsync()
     {
         var deadline = DateTime.UtcNow.AddSeconds(45);
         while (DateTime.UtcNow < deadline)
@@ -317,7 +351,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
 
             try
             {
-                var response = await _http.GetAsync($"{_baseUrl}/api/health");
+                var response = await _http.GetAsync($"{_baseUrl}/api/session");
                 if (response.StatusCode == HttpStatusCode.OK) return;
             }
             catch (HttpRequestException)
@@ -332,7 +366,32 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
             await Task.Delay(300);
         }
 
-        throw new TimeoutException($"Server did not become healthy at {_baseUrl}");
+        throw new TimeoutException($"Server did not start listening at {_baseUrl}");
+    }
+
+    private async Task UnlockAsync()
+    {
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/api/unlock", new { password = Password });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEmpty(_cookies.GetCookies(new Uri(_baseUrl)).Cast<Cookie>());
+    }
+
+    /// <summary>A hub connection carrying the session cookie, exactly as the browser's does.</summary>
+    private HubConnection BuildHub() => new HubConnectionBuilder()
+        .WithUrl($"{_baseUrl}/hubs/argus", options => options.Cookies = _cookies)
+        .Build();
+
+    private async Task<ClientWebSocket> ConnectFrameSocketAsync(string? clientId)
+    {
+        var socket = new ClientWebSocket();
+        socket.Options.Cookies = _cookies;
+
+        await socket.ConnectAsync(
+            new Uri($"{_baseUrl.Replace("http://", "ws://")}/ws/frames?clientId={clientId}"),
+            CancellationToken.None);
+
+        return socket;
     }
 
     /// <summary>
