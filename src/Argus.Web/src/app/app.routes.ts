@@ -13,6 +13,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/explorer.component').then((m) => m.ExplorerComponent),
   },
   {
+    path: 'settings',
+    title: 'Argus - Settings',
+    loadComponent: () => import('./pages/settings.component').then((m) => m.SettingsComponent),
+  },
+  {
     path: 'view/:handle',
     title: 'Argus - Live',
     loadComponent: () => import('./pages/viewer.component').then((m) => m.ViewerComponent),

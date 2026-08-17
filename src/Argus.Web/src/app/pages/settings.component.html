@@ -1,0 +1,60 @@
+<section class="page">
+  <h1>Settings</h1>
+
+  <section class="card">
+    <header>
+      <h2>Security</h2>
+      <p class="muted">
+        The password is set on the agent, in appsettings.json or the ARGUS_PASSWORD environment
+        variable. These settings belong to this browser only.
+      </p>
+    </header>
+
+    @if (!session.required()) {
+      <p class="banner warn">
+        The agent has no password configured, so nothing is locked. Anyone who can reach its port
+        can drive this desktop.
+      </p>
+    }
+
+    <label class="row toggle" for="auto-lock">
+      <span class="label">
+        <span class="name">Auto Lock</span>
+        <span class="hint muted">Locks this browser after a spell with no typing or pointing.</span>
+      </span>
+      <input
+        id="auto-lock"
+        type="checkbox"
+        [checked]="settings.autoLock()"
+        (change)="toggleAutoLock($any($event.target).checked)"
+      />
+    </label>
+
+    <label class="row" for="idle-minutes" [class.disabled]="!settings.autoLock()">
+      <span class="label">
+        <span class="name">Idle before locking</span>
+        <span class="hint muted">Between 1 and 240 minutes.</span>
+      </span>
+      <span class="minutes">
+        <input
+          id="idle-minutes"
+          type="number"
+          min="1"
+          max="240"
+          step="1"
+          inputmode="numeric"
+          [disabled]="!settings.autoLock()"
+          [value]="settings.idleMinutes()"
+          (change)="setIdleMinutes($any($event.target).value)"
+        />
+        <span class="unit muted">min</span>
+      </span>
+    </label>
+
+    <div class="actions">
+      <button type="button" class="ghost" [disabled]="!session.required()" (click)="lockNow()">
+        Lock now
+      </button>
+    </div>
+  </section>
+</section>

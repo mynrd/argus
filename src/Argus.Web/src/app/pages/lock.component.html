@@ -1,0 +1,27 @@
+<div class="lock" role="dialog" aria-modal="true" aria-labelledby="lock-title">
+  <form class="panel" (submit)="submit($event)">
+    <div class="mark" aria-hidden="true"><span class="eye"></span></div>
+
+    <h1 id="lock-title">Argus is locked</h1>
+    <p class="muted">Enter the password to reach this desktop.</p>
+
+    <input
+      #passwordBox
+      type="password"
+      name="password"
+      autocomplete="current-password"
+      placeholder="Password"
+      aria-label="Password"
+      [value]="password()"
+      (input)="password.set($any($event.target).value)"
+    />
+
+    @if (error(); as problem) {
+      <p class="banner bad" role="alert">{{ problem }}</p>
+    }
+
+    <button type="submit" class="primary" [disabled]="busy() || !password()">
+      {{ busy() ? 'Checking…' : 'Unlock' }}
+    </button>
+  </form>
+</div>

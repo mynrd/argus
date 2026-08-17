@@ -71,6 +71,25 @@
   white-space: nowrap;
 }
 
+.lock-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  flex: 0 0 auto;
+}
+
+.lock-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .global-error {
   margin: 0.75rem 1rem 0;
 }
@@ -94,6 +113,10 @@ main {
   }
 
   .agent-label {
+    display: none;
+  }
+
+  .lock-label {
     display: none;
   }
 }
