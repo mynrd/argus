@@ -1,10 +1,17 @@
-.viewer {
+:host {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  /* Fills the viewport in both orientations - rotating the phone for a wide window is expected. */
-  height: calc(100dvh - 53px);
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  /* Takes whatever the shell has left under the top bar rather than guessing its height - guessing
+     overshoots by a few pixels and puts a scrollbar on the page. */
+  min-height: 0;
 }
 
 /* Fullscreening the section, not the stage, keeps the bar visible - the app shell's own header is
