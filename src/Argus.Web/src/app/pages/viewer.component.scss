@@ -121,6 +121,8 @@
   min-height: 0;
   background: var(--surface-sunken);
   overflow: hidden;
+  /* Anchors the scroll buttons to the stage rather than the page, so they stay put in fullscreen. */
+  position: relative;
   /* Pinch and drag handling are ours, not the browser's - otherwise iOS pans and zooms the page
      instead of the stream, and one-finger drags scroll the document. */
   touch-action: none;
@@ -141,6 +143,42 @@
 
 .stage.pannable:active {
   cursor: grabbing;
+}
+
+/* ------------------------------------------------------- scroll buttons */
+
+/* Where a scrollbar would be, because that is where a hand already reaches to scroll. */
+.scroll-pad {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.scroll-pad .icon {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  min-height: var(--tap-target);
+  border-color: var(--border-strong);
+  /* Translucent rather than solid: these sit on top of the stream and hide part of it. */
+  background: rgba(20, 25, 34, 0.75);
+  color: var(--text);
+  backdrop-filter: blur(2px);
+}
+
+.scroll-pad .icon:hover:not(:disabled),
+.scroll-pad .icon:active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.scroll-pad .icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 /* ---------------------------------------------------------------- menus */

@@ -182,6 +182,48 @@
     (contextmenu)="onContextMenu($event)"
   >
     <argus-frame-view [handle]="handle()" [zoom]="zoom()" [panX]="panX()" [panY]="panY()" />
+
+    <!-- Sits over the frame, so every pointer event on it has to be stopped from reaching the
+         stage underneath - otherwise pressing a scroll button also clicks the host at that spot. -->
+    @if (mouseMode()) {
+      <div
+        class="scroll-pad"
+        (pointerdown)="$event.stopPropagation()"
+        (pointermove)="$event.stopPropagation()"
+        (pointerup)="$event.stopPropagation()"
+        (contextmenu)="$event.preventDefault()"
+      >
+        <button
+          type="button"
+          class="icon"
+          aria-label="Scroll up"
+          title="Scroll up"
+          (pointerdown)="startScrolling(1)"
+          (pointerup)="stopScrolling()"
+          (pointerleave)="stopScrolling()"
+          (pointercancel)="stopScrolling()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="6 15 12 9 18 15" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="icon"
+          aria-label="Scroll down"
+          title="Scroll down"
+          (pointerdown)="startScrolling(-1)"
+          (pointerup)="stopScrolling()"
+          (pointerleave)="stopScrolling()"
+          (pointercancel)="stopScrolling()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      </div>
+    }
   </div>
 
   <!-- A real input, kept off-screen: focusing it is what raises the soft keyboard on a phone,
