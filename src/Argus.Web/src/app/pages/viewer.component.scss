@@ -135,6 +135,13 @@
   touch-action: none;
 }
 
+/* Pinned rather than sized at 100%: the shell is min-height only, so no ancestor has a definite
+   height for a percentage to resolve against and the frame would collapse to nothing. */
+.stage argus-frame-view {
+  position: absolute;
+  inset: 0;
+}
+
 .stage.pannable {
   cursor: grab;
 }
