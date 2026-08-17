@@ -66,6 +66,7 @@ export enum MouseAction {
   Down = 1,
   Up = 2,
   Click = 3,
+  Scroll = 4,
 }
 
 /** Mirrors Argus.Server.Input.MouseButton. */
@@ -82,6 +83,8 @@ export interface MouseEventDto {
   /** Fraction of the captured frame, 0..1 - not pixels. */
   x: number;
   y: number;
+  /** Scroll only: wheel movement in WHEEL_DELTA units, 120 per notch, positive scrolls up. */
+  delta?: number;
 }
 
 export interface SendKeyResult {
