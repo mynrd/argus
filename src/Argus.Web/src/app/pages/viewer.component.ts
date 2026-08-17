@@ -114,6 +114,9 @@ export class ViewerComponent implements OnInit, OnDestroy {
   private gesture: MouseGesture | null = null;
   private lastMoveSentAt = 0;
 
+  private pendingScroll: { notches: number; clientX: number; clientY: number } | null = null;
+  private scrollFrame = 0;
+
   constructor() {
     // Subscribing must be reactive, not a one-shot in ngOnInit. Opening a viewer URL directly
     // races the hub connection: the component initialises while ArgusService.start() is still
@@ -157,6 +160,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     // Leaving the page mid-drag would otherwise strand a held mouse button on the host.
     this.abortMouseGesture();
+    this.cancelPendingScroll();
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     window.removeEventListener('resize', this.onViewportResize);
     const handle = this.handle();
@@ -324,6 +328,14 @@ export class ViewerComponent implements OnInit, OnDestroy {
   protected onWheel(event: WheelEvent): void {
     // Scroll-to-zoom is the expectation on a desktop; the page itself never scrolls here.
     event.preventDefault();
+
+    // In mouse mode the wheel belongs to the app being driven, not to the viewer. Ctrl+wheel is
+    // kept as local zoom so the view is still zoomable without switching mouse mode off.
+    if (this.mouseMode() && !event.ctrlKey) {
+      this.queueScroll(event);
+      return;
+    }
+
     const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
     this.zoomAbout(event.clientX, event.clientY, this.zoom() * factor);
   }
@@ -411,6 +423,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
     const next = !this.mouseMode();
     this.mouseMode.set(next);
     this.abortMouseGesture();
+    this.cancelPendingScroll();
 
     if (!next) return;
 
@@ -527,6 +540,54 @@ export class ViewerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * One flick of a wheel or trackpad fires dozens of events, and every dispatch costs a hub round
+   * trip plus a SetForegroundWindow and SetCursorPos on the host. Accumulate here and send at most
+   * one event per frame instead.
+   */
+  private queueScroll(event: WheelEvent): void {
+    // Same rule as a click: the letterboxing around the frame is not part of the app.
+    const view = this.frameView();
+    if (!view || !view.contains(event.clientX, event.clientY)) return;
+
+    this.pendingScroll = {
+      notches: (this.pendingScroll?.notches ?? 0) + wheelNotches(event),
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+
+    if (this.scrollFrame) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = 0;
+      this.flushScroll();
+    });
+  }
+
+  private flushScroll(): void {
+    const pending = this.pendingScroll;
+    if (!pending) return;
+
+    // Whole notches only, carrying the remainder: a slow trackpad drags in fractions that would
+    // otherwise round away to nothing every frame and never scroll at all.
+    const notches = Math.trunc(pending.notches);
+    if (notches === 0) return;
+
+    pending.notches -= notches;
+    void this.dispatchMouseAt(
+      MouseAction.Scroll,
+      MouseButton.Left,
+      pending.clientX,
+      pending.clientY,
+      notches * WHEEL_DELTA,
+    );
+  }
+
+  private cancelPendingScroll(): void {
+    if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = 0;
+    this.pendingScroll = null;
+  }
+
   private dispatchMouse(action: MouseAction, button: MouseButton, event: PointerEvent): Promise<void> {
     return this.dispatchMouseAt(action, button, event.clientX, event.clientY);
   }
@@ -536,6 +597,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
     button: MouseButton,
     clientX: number,
     clientY: number,
+    delta = 0,
   ): Promise<void> {
     const view = this.frameView();
     if (!view) return;
@@ -547,6 +609,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
       button,
       x: point.x,
       y: point.y,
+      delta,
     });
 
     if (!result.delivered && result.reason) {
@@ -653,6 +716,32 @@ export class ViewerComponent implements OnInit, OnDestroy {
   protected async back(): Promise<void> {
     await this.router.navigate(['/dashboard']);
   }
+}
+
+/**
+ * How far one wheel notch turns the app being driven, in the WHEEL_DELTA units Windows expects.
+ */
+const WHEEL_DELTA = 120;
+
+/** Pixels of deltaY that count as one notch on a device that reports in pixels. */
+const NOTCH_PIXELS = 100;
+
+/**
+ * A wheel event's deltaY in notches, sign-corrected for Windows.
+ *
+ * deltaMode decides the unit and it varies by device and browser: pixels on a trackpad, lines on
+ * most wheels, pages on a few. Browsers count scrolling down as positive; the Windows wheel counts
+ * it as negative, hence the flip.
+ */
+function wheelNotches(event: WheelEvent): number {
+  const perUnit =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 1
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? 3
+        : 1 / NOTCH_PIXELS;
+
+  return -event.deltaY * perUnit;
 }
 
 /** PointerEvent.button: 0 left, 1 middle, 2 right. */

@@ -50,7 +50,7 @@ public sealed class MouseInjector
             return new InjectionResult(false, "mouse", "Windows refused to move the cursor");
         }
 
-        var flags = ButtonFlags(mouseEvent.Action, mouseEvent.Button);
+        var flags = ButtonFlags(mouseEvent.Action, mouseEvent.Button, mouseEvent.Delta);
         if (flags.Length == 0) return new InjectionResult(true, "mouse");   // a plain move is done
 
         var inputs = flags.Select(flag => new NativeMethods.INPUT
@@ -58,7 +58,7 @@ public sealed class MouseInjector
             Type = NativeMethods.INPUT_MOUSE,
             Union = new NativeMethods.InputUnion
             {
-                Mouse = new NativeMethods.MOUSEINPUT { Flags = flag },
+                Mouse = new NativeMethods.MOUSEINPUT { Flags = flag.Flag, MouseData = flag.Data },
             },
         }).ToArray();
 
@@ -75,8 +75,18 @@ public sealed class MouseInjector
         return new InjectionResult(true, "mouse");
     }
 
-    private static uint[] ButtonFlags(MouseAction action, MouseButton button)
+    /// <summary>One SendInput event: the MOUSEEVENTF_* flag and its mouseData (wheel delta only).</summary>
+    private readonly record struct MouseFlag(uint Flag, uint Data);
+
+    private static MouseFlag[] ButtonFlags(MouseAction action, MouseButton button, int delta)
     {
+        // Wheel carries its amount in mouseData rather than a second event, so it is its own case.
+        if (action == MouseAction.Scroll)
+        {
+            // unchecked: a negative delta is passed to Win32 as its two's-complement bit pattern.
+            return delta == 0 ? [] : [new MouseFlag(NativeMethods.MOUSEEVENTF_WHEEL, unchecked((uint)delta))];
+        }
+
         var (down, up) = button switch
         {
             MouseButton.Right => (NativeMethods.MOUSEEVENTF_RIGHTDOWN, NativeMethods.MOUSEEVENTF_RIGHTUP),
@@ -86,9 +96,9 @@ public sealed class MouseInjector
 
         return action switch
         {
-            MouseAction.Down => [down],
-            MouseAction.Up => [up],
-            MouseAction.Click => [down, up],
+            MouseAction.Down => [new MouseFlag(down, 0)],
+            MouseAction.Up => [new MouseFlag(up, 0)],
+            MouseAction.Click => [new MouseFlag(down, 0), new MouseFlag(up, 0)],
             _ => [],
         };
     }
