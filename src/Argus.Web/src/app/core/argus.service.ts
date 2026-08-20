@@ -7,6 +7,7 @@ import {
 } from '@microsoft/signalr';
 import {
   BrowseListing,
+  CloseResult,
   Frame,
   InjectionMode,
   KeyEventDto,
@@ -355,9 +356,9 @@ export class ArgusService {
   }
 
   /** Asks the app to close. It may put up a save prompt on the host desktop. */
-  async closeWindow(handle: number): Promise<{ closed: boolean; reason?: string | null }> {
+  async closeWindow(handle: number): Promise<CloseResult> {
     return (
-      (await this.invoke<{ closed: boolean; reason?: string | null }>('CloseWindow', handle)) ?? {
+      (await this.invoke<CloseResult>('CloseWindow', handle)) ?? {
         closed: false,
         reason: 'Not connected',
       }
@@ -365,9 +366,9 @@ export class ArgusService {
   }
 
   /** Terminates the app. Unsaved work in it is lost. */
-  async killWindow(handle: number): Promise<{ closed: boolean; reason?: string | null }> {
+  async killWindow(handle: number): Promise<CloseResult> {
     return (
-      (await this.invoke<{ closed: boolean; reason?: string | null }>('KillWindow', handle)) ?? {
+      (await this.invoke<CloseResult>('KillWindow', handle)) ?? {
         closed: false,
         reason: 'Not connected',
       }

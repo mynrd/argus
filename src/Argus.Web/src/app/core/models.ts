@@ -93,6 +93,14 @@ export interface SendKeyResult {
   reason?: string | null;
 }
 
+/** Result of CloseWindow / KillWindow. */
+export interface CloseResult {
+  closed: boolean;
+  /** The handle no longer resolves to a window: the app is already gone, so the row is stale. */
+  gone?: boolean;
+  reason?: string | null;
+}
+
 /** One row of the host-side Browse dialog. Mirrors Argus.Server.Services.BrowseEntry. */
 export interface BrowseEntry {
   name: string;

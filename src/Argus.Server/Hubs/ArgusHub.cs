@@ -169,9 +169,11 @@ public sealed class ArgusHub : Hub
     /// <summary>Asks the app to close, as clicking its X would. It may prompt about unsaved work.</summary>
     public object CloseWindow(long handle)
     {
+        // gone is not the same failure as "the app refused": the window is already not there, so
+        // the caller's row is stale and should be dropped rather than reported as an error.
         if (WindowEnumerator.Describe(handle) is not { } window)
         {
-            return new { closed = false, reason = "No such window" };
+            return new { closed = false, gone = true, reason = "No such window" };
         }
 
         var (ok, reason) = WindowCloser.Close(handle);
@@ -185,7 +187,7 @@ public sealed class ArgusHub : Hub
     {
         if (WindowEnumerator.Describe(handle) is not { } window)
         {
-            return new { closed = false, reason = "No such window" };
+            return new { closed = false, gone = true, reason = "No such window" };
         }
 
         var (ok, reason) = WindowCloser.Kill(handle);

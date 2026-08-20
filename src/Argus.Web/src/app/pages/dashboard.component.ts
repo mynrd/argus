@@ -131,6 +131,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const result = await this.argus.closeWindow(window.handle);
 
     if (!result.closed) {
+      // Already gone: the row is a leftover from the last enumeration, so drop it instead of
+      // complaining about a window that is not there. Nothing to close means nothing failed.
+      if (result.gone) {
+        await this.dropStale(window.handle);
+        return;
+      }
+
       this.runError.set(result.reason ?? `Could not close ${window.title}.`);
       return;
     }
@@ -159,6 +166,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     const result = await this.argus.killWindow(window.handle);
     if (!result.closed) {
+      if (result.gone) {
+        await this.dropStale(window.handle);
+        return;
+      }
+
       this.runError.set(result.reason ?? `Could not kill ${window.title}.`);
       return;
     }
@@ -183,6 +195,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     this.argus.forgetWindow(handle);
+  }
+
+  /**
+   * Handles a row whose window has already vanished: take it off the list, then re-enumerate, so
+   * every other row that died with it goes too rather than waiting to be clicked one at a time.
+   */
+  private async dropStale(handle: number): Promise<void> {
+    await this.forget(handle);
+    await this.argus.refreshWindows();
   }
 
   protected async refreshWindows(): Promise<void> {
