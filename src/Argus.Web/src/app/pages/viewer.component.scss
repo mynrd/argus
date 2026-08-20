@@ -102,10 +102,6 @@
   color: var(--text);
 }
 
-.icon.accent {
-  color: var(--accent);
-}
-
 .zoom-row {
   display: flex;
   align-items: center;
@@ -193,6 +189,132 @@
 .scroll-pad .icon svg {
   width: 22px;
   height: 22px;
+}
+
+/* -------------------------------------------------------------- key pad */
+
+/* Bottom edge, where a soft keyboard would be, and centred so it is reachable with either thumb.
+   Width is content-driven so it never covers more of the stream than the keys need. */
+.key-pad {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  /* transform carries both the -50% centring and the drag offset, so it is set from the
+     component - see padTransform. */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: calc(100% - 1rem);
+  padding: 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  /* Translucent for the same reason as the scroll buttons: it is on top of the picture. */
+  background: rgba(20, 25, 34, 0.82);
+  backdrop-filter: blur(3px);
+  /* A key is a press, never a text selection or an iOS callout. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.key {
+  min-width: 3rem;
+  min-height: var(--tap-target);
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.key:active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.key.wide {
+  min-width: 4.2rem;
+}
+
+.key.arrow {
+  min-width: 3.4rem;
+  font-size: 1.1rem;
+}
+
+.key.alt-key {
+  min-width: 2.6rem;
+  color: var(--text-muted);
+}
+
+.key.hide {
+  font-size: 0.95rem;
+}
+
+.key.grip {
+  min-width: 2.2rem;
+  font-size: 1.1rem;
+  cursor: grab;
+}
+
+.key.grip:active {
+  cursor: grabbing;
+}
+
+/* Latched is "applies to the next key", locked is "held down on the host" - two states, so two
+   weights of the same colour rather than one shared highlight. */
+.key.latched {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.key.locked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b0f16;
+  font-weight: 600;
+}
+
+/* Twelve keys never fit one phone row; letting them wrap is better than shrinking them below a
+   thumb's width. */
+.fn-row .key {
+  min-width: 2.5rem;
+}
+
+@media (max-width: 560px) {
+  .key {
+    min-width: 2.7rem;
+    font-size: 0.75rem;
+  }
+
+  .key.wide {
+    min-width: 3.6rem;
+  }
+}
+
+/* Landscape phone: the pad competes with the picture for height, so the keys get shorter. */
+@media (max-height: 450px) and (orientation: landscape) {
+  .key-pad {
+    gap: 0.25rem;
+    padding: 0.3rem;
+  }
+
+  .key-row {
+    gap: 0.25rem;
+  }
+
+  .key {
+    min-height: 34px;
+  }
 }
 
 /* ---------------------------------------------------------------- menus */

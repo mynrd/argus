@@ -9,9 +9,17 @@ const DEFAULT_IDLE_MINUTES = 10;
 const MIN_IDLE_MINUTES = 1;
 const MAX_IDLE_MINUTES = 240;
 
+/** The scroll buttons cover part of the stream, so whether they are worth it is a per-device call. */
+const DEFAULT_SHOW_SCROLL_BUTTONS = true;
+
+/** The key pad covers more, so it stays off until asked for. */
+const DEFAULT_SHOW_KEY_PAD = false;
+
 interface StoredSettings {
   autoLock?: boolean;
   idleMinutes?: number;
+  showScrollButtons?: boolean;
+  showKeyPad?: boolean;
 }
 
 /**
@@ -24,10 +32,19 @@ interface StoredSettings {
 export class SettingsService {
   readonly autoLock = signal(DEFAULT_AUTO_LOCK);
   readonly idleMinutes = signal(DEFAULT_IDLE_MINUTES);
+  readonly showScrollButtons = signal(DEFAULT_SHOW_SCROLL_BUTTONS);
+  readonly showKeyPad = signal(DEFAULT_SHOW_KEY_PAD);
 
   constructor() {
     this.load();
-    effect(() => this.save({ autoLock: this.autoLock(), idleMinutes: this.idleMinutes() }));
+    effect(() =>
+      this.save({
+        autoLock: this.autoLock(),
+        idleMinutes: this.idleMinutes(),
+        showScrollButtons: this.showScrollButtons(),
+        showKeyPad: this.showKeyPad(),
+      }),
+    );
   }
 
   /** Clamped on the way in, so a hand-edited localStorage cannot disable the lock with a huge number. */
@@ -46,6 +63,10 @@ export class SettingsService {
       const stored = JSON.parse(raw) as StoredSettings;
       if (typeof stored.autoLock === 'boolean') this.autoLock.set(stored.autoLock);
       if (typeof stored.idleMinutes === 'number') this.setIdleMinutes(stored.idleMinutes);
+      if (typeof stored.showScrollButtons === 'boolean') {
+        this.showScrollButtons.set(stored.showScrollButtons);
+      }
+      if (typeof stored.showKeyPad === 'boolean') this.showKeyPad.set(stored.showKeyPad);
     } catch {
       // Corrupt or unavailable storage (private browsing) just means the defaults.
     }

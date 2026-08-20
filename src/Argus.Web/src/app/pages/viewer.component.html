@@ -1,6 +1,8 @@
 <section #viewer class="viewer">
   <header class="bar">
-    <button type="button" class="ghost back" (click)="back()" aria-label="Back to dashboard">‹</button>
+    <button type="button" class="ghost back" (click)="back()" aria-label="Back to dashboard">
+      ‹
+    </button>
 
     <div class="ident">
       <span class="status-dot" [class]="statusClass()"></span>
@@ -60,7 +62,13 @@
         </svg>
       </button>
 
-      <button type="button" class="icon" (click)="resetZoom()" aria-label="Reset zoom" title="Reset zoom">
+      <button
+        type="button"
+        class="icon"
+        (click)="resetZoom()"
+        aria-label="Reset zoom"
+        title="Reset zoom"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <polyline points="1 4 1 10 7 10" />
           <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
@@ -88,6 +96,46 @@
         </button>
       }
 
+      <!-- The scroll buttons only exist while the host is being driven, so neither does the switch
+           that shows them. -->
+      @if (mouseMode()) {
+        <button
+          type="button"
+          class="icon"
+          [class.on]="showScrollButtons()"
+          [attr.aria-pressed]="showScrollButtons()"
+          (click)="toggleScrollButtons()"
+          [attr.aria-label]="showScrollButtons() ? 'Hide scroll buttons' : 'Show scroll buttons'"
+          [title]="showScrollButtons() ? 'Scroll buttons: on' : 'Scroll buttons: off'"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="8 9 12 5 16 9" />
+            <polyline points="8 15 12 19 16 15" />
+          </svg>
+        </button>
+      }
+
+      <button
+        type="button"
+        class="icon"
+        [class.on]="showKeyPad()"
+        [attr.aria-pressed]="showKeyPad()"
+        (click)="toggleKeyPad()"
+        [attr.aria-label]="
+          showKeyPad() ? 'Hide the key pad and stop typing' : 'Show the key pad and type in the app'
+        "
+        [title]="showKeyPad() ? 'Key pad: on' : 'Key pad: off - tap to type in the app'"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <line x1="6" y1="10" x2="6" y2="10" />
+          <line x1="10" y1="10" x2="10" y2="10" />
+          <line x1="14" y1="10" x2="14" y2="10" />
+          <line x1="18" y1="10" x2="18" y2="10" />
+          <line x1="8" y1="14" x2="16" y2="14" />
+        </svg>
+      </button>
+
       <button
         type="button"
         class="icon"
@@ -111,30 +159,17 @@
       >
         @if (isFullscreen()) {
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+            <path
+              d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"
+            />
           </svg>
         } @else {
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+            <path
+              d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"
+            />
           </svg>
         }
-      </button>
-
-      <button
-        type="button"
-        class="icon accent"
-        (click)="focusApp()"
-        aria-label="Focus the app"
-        title="Focus the app"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="12" r="2.5" />
-          <line x1="12" y1="1" x2="12" y2="5" />
-          <line x1="12" y1="19" x2="12" y2="23" />
-          <line x1="1" y1="12" x2="5" y2="12" />
-          <line x1="19" y1="12" x2="23" y2="12" />
-        </svg>
       </button>
     </div>
   </header>
@@ -157,7 +192,9 @@
           }
         } @else {
           @for (size of sizes; track size.value) {
-            <button type="button" class="choice" (click)="pickSize(size.value)">{{ size.label }}</button>
+            <button type="button" class="choice" (click)="pickSize(size.value)">
+              {{ size.label }}
+            </button>
           }
         }
       </div>
@@ -185,7 +222,7 @@
 
     <!-- Sits over the frame, so every pointer event on it has to be stopped from reaching the
          stage underneath - otherwise pressing a scroll button also clicks the host at that spot. -->
-    @if (mouseMode()) {
+    @if (mouseMode() && showScrollButtons()) {
       <div
         class="scroll-pad"
         (pointerdown)="$event.stopPropagation()"
@@ -222,6 +259,158 @@
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
+      </div>
+    }
+
+    <!-- The keys a tablet's own soft keyboard has no way to produce. Same rule as the scroll pad:
+         it sits over the frame, so its pointer events must not reach the stage underneath. -->
+    @if (showKeyPad()) {
+      <div
+        #keyPad
+        class="key-pad"
+        [style.transform]="padTransform()"
+        (pointerdown)="keepTyping($event); $event.stopPropagation()"
+        (pointermove)="$event.stopPropagation()"
+        (pointerup)="releasePadKey(); $event.stopPropagation()"
+        (pointerleave)="releasePadKey()"
+        (click)="restoreTyping()"
+        (contextmenu)="$event.preventDefault()"
+      >
+        <div class="key-row">
+          <button
+            type="button"
+            class="key alt-key grip"
+            aria-label="Move the key pad"
+            title="Drag to move the key pad"
+            (pointerdown)="startPadDrag($event)"
+            (pointermove)="movePadDrag($event)"
+            (pointerup)="endPadDrag($event)"
+            (pointercancel)="endPadDrag($event)"
+          >
+            ⠿
+          </button>
+
+          @if (!padMinimized()) {
+            @for (mod of modifierKeys; track mod.name) {
+              <button
+                type="button"
+                class="key mod"
+                [class.latched]="modifierState(mod.name) === 1"
+                [class.locked]="modifierState(mod.name) === 2"
+                [attr.aria-pressed]="modifierState(mod.name) > 0"
+                [title]="
+                  modifierState(mod.name) === 2
+                    ? mod.label + ' held down - tap to release'
+                    : modifierState(mod.name) === 1
+                      ? mod.label + ' for the next key - tap to hold it down'
+                      : 'Tap for ' + mod.label + ' on the next key'
+                "
+                (pointerdown)="cycleModifier(mod.name)"
+              >
+                {{ mod.label }}
+              </button>
+            }
+
+            <button
+              type="button"
+              class="key alt-key"
+              [class.latched]="showFunctionKeys()"
+              [attr.aria-pressed]="showFunctionKeys()"
+              (pointerdown)="toggleFunctionKeys()"
+              title="Function keys"
+            >
+              Fn
+            </button>
+          }
+
+          <button
+            type="button"
+            class="key alt-key"
+            [attr.aria-pressed]="padMinimized()"
+            (pointerdown)="toggleMinimize()"
+            [attr.aria-label]="padMinimized() ? 'Show the keys' : 'Minimize the key pad'"
+            [title]="padMinimized() ? 'Show the keys' : 'Minimize the key pad'"
+          >
+            {{ padMinimized() ? '⌨' : '–' }}
+          </button>
+
+          <button
+            type="button"
+            class="key alt-key hide"
+            (pointerdown)="toggleKeyPad()"
+            aria-label="Hide the key pad"
+            title="Hide the key pad"
+          >
+            ✕
+          </button>
+        </div>
+
+        @if (!padMinimized()) {
+          <div class="key-row">
+            @for (key of editKeys; track key.code) {
+              <button
+                type="button"
+                class="key"
+                [class.wide]="key.wide"
+                [attr.aria-label]="key.label"
+                (pointerdown)="pressPadKey(key, $event)"
+                (pointerup)="releasePadKey()"
+                (pointercancel)="releasePadKey()"
+              >
+                {{ key.label }}
+              </button>
+            }
+          </div>
+
+          <div class="key-row">
+            @for (key of navKeys; track key.code) {
+              <button
+                type="button"
+                class="key"
+                [attr.aria-label]="key.label"
+                (pointerdown)="pressPadKey(key, $event)"
+                (pointerup)="releasePadKey()"
+                (pointercancel)="releasePadKey()"
+              >
+                {{ key.label }}
+              </button>
+            }
+          </div>
+
+          @if (showFunctionKeys()) {
+            @for (row of functionRows; track $index) {
+              <div class="key-row fn-row">
+                @for (key of row; track key.code) {
+                  <button
+                    type="button"
+                    class="key"
+                    [attr.aria-label]="key.label"
+                    (pointerdown)="pressPadKey(key, $event)"
+                    (pointerup)="releasePadKey()"
+                    (pointercancel)="releasePadKey()"
+                  >
+                    {{ key.label }}
+                  </button>
+                }
+              </div>
+            }
+          }
+
+          <div class="key-row arrows">
+            @for (key of arrowKeys; track key.code) {
+              <button
+                type="button"
+                class="key arrow"
+                [attr.aria-label]="key.code"
+                (pointerdown)="pressPadKey(key, $event)"
+                (pointerup)="releasePadKey()"
+                (pointercancel)="releasePadKey()"
+              >
+                {{ key.label }}
+              </button>
+            }
+          </div>
+        }
       </div>
     }
   </div>
