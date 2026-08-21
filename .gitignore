@@ -18,3 +18,5 @@ src/Argus.Server/wwwroot/
 .work/
 
 .temp-*
+# Tracked despite the .temp-* rule above - checked in on purpose
+!.temp-run-monitor-github.ps1
