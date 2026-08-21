@@ -33,11 +33,11 @@ public sealed class SessionGuard
 
     public SessionGuard(IConfiguration config)
     {
-        // The env var wins so the password can be kept out of appsettings.json, which is tracked
-        // by git - anything written to that file is in the history for good.
-        string configured = Environment.GetEnvironmentVariable("ARGUS_PASSWORD")
-            ?? config["Argus:Password"]
-            ?? string.Empty;
+        // appsettings.json wins when it actually has a value; ARGUS_PASSWORD is the fallback the
+        // launch scripts fill in from -Password. Both blank means no lock at all.
+        string configured = config["Argus:Password"] is { Length: > 0 } fromConfig
+            ? fromConfig
+            : Environment.GetEnvironmentVariable("ARGUS_PASSWORD") ?? string.Empty;
 
         _password = Encoding.UTF8.GetBytes(configured);
     }
