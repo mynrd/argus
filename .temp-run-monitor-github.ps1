@@ -32,7 +32,7 @@
 .PARAMETER Password
     Fallback viewer password, passed through to run.ps1. The server only uses it when
     Argus:Password in src\Argus.Server\appsettings.json is empty; with both empty there is no lock.
-    `--password=value` is accepted as well, for callers that are used to that style.
+    `--password value` and `--password=value` are accepted as well, for callers used to that style.
 
 .EXAMPLE
     .\.temp-run-monitor-github.ps1
@@ -59,8 +59,14 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$ExtraArgs
 )
 
-foreach ($arg in $ExtraArgs) {
+for ($i = 0; $i -lt $ExtraArgs.Count; $i++) {
+    $arg = $ExtraArgs[$i]
     if ($arg -match '^--password=(.*)$') { $Password = $Matches[1]; continue }
+    if ($arg -eq '--password') {
+        if ($i + 1 -ge $ExtraArgs.Count) { throw "--password needs a value." }
+        $Password = $ExtraArgs[++$i]
+        continue
+    }
     throw "Unrecognized argument '$arg'."
 }
 
