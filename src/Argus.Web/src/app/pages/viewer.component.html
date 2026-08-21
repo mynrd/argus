@@ -427,8 +427,6 @@
     spellcheck="false"
     aria-label="Keyboard input for the streamed app"
     [attr.tabindex]="sendKeys() ? 0 : -1"
-    (keydown)="onKeyDown($event)"
-    (keyup)="onKeyUp($event)"
     (beforeinput)="onBeforeInput($event)"
     (input)="clearKeyboardSink()"
   />
