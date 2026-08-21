@@ -3,7 +3,16 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\)\")",
+      "Bash(npx ng *)",
+      "Bash(dir)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git log *)",
+      "Read(//tmp/**)",
+      "PowerShell(dotnet build d:\\\\Work\\\\git\\\\mynrd\\\\argus\\\\src\\\\Argus.Server\\\\Argus.Server.csproj -c Debug --nologo -v minimal)",
+      "PowerShell(git -C d:\\\\Work\\\\git\\\\mynrd\\\\argus status --short)",
+      "PowerShell(git -C d:\\\\Work\\\\git\\\\mynrd\\\\argus diff --cached --stat)"
     ]
   }
 }

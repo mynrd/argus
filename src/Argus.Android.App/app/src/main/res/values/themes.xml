@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark background from the first frame, so launching does not flash white before Compose. -->
+    <style name="Theme.Argus" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/argus_bg</item>
+        <item name="android:statusBarColor">@color/argus_bg</item>
+        <item name="android:navigationBarColor">@color/argus_bg</item>
+    </style>
+</resources>

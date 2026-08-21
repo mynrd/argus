@@ -96,9 +96,9 @@
         </button>
       }
 
-      <!-- The scroll buttons only exist while the host is being driven, so neither does the switch
-           that shows them. -->
-      @if (mouseMode()) {
+      <!-- A wheel already scrolls the host, so the buttons are only worth their space - and only
+           offered - on a screen that has no wheel. -->
+      @if (touchDevice) {
         <button
           type="button"
           class="icon"
@@ -136,19 +136,28 @@
         </svg>
       </button>
 
-      <button
-        type="button"
-        class="icon"
-        [class.on]="mouseMode()"
-        [attr.aria-pressed]="mouseMode()"
-        (click)="toggleMouseMode()"
-        [attr.aria-label]="mouseMode() ? 'Mouse mode on' : 'Mouse mode off'"
-        [title]="mouseMode() ? 'Mouse mode: on' : 'Mouse mode: off'"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-        </svg>
-      </button>
+      <!-- Tapping and holding always reach the host; a mouse has buttons and a Shift key. So this
+           only exists on a touch screen, and only to settle what a one-finger drag means. -->
+      @if (touchDevice) {
+        <button
+          type="button"
+          class="icon"
+          [class.on]="dragToHost()"
+          [attr.aria-pressed]="dragToHost()"
+          (click)="toggleDragToHost()"
+          [attr.aria-label]="dragToHost() ? 'Dragging drags the app' : 'Dragging moves the picture'"
+          [title]="dragToHost() ? 'Drag: drags the app' : 'Drag: moves the picture'"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="5 9 2 12 5 15" />
+            <polyline points="9 5 12 2 15 5" />
+            <polyline points="15 19 12 22 9 19" />
+            <polyline points="19 9 22 12 19 15" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <line x1="12" y1="2" x2="12" y2="22" />
+          </svg>
+        </button>
+      }
 
       <button
         type="button"
@@ -208,8 +217,6 @@
   <div
     #stage
     class="stage"
-    [class.pannable]="canPan() && !mouseMode()"
-    [class.mousing]="mouseMode()"
     (wheel)="onWheel($event)"
     (pointerdown)="onPointerDown($event)"
     (pointermove)="onPointerMove($event)"
@@ -222,7 +229,7 @@
 
     <!-- Sits over the frame, so every pointer event on it has to be stopped from reaching the
          stage underneath - otherwise pressing a scroll button also clicks the host at that spot. -->
-    @if (mouseMode() && showScrollButtons()) {
+    @if (touchDevice && showScrollButtons()) {
       <div
         class="scroll-pad"
         (pointerdown)="$event.stopPropagation()"

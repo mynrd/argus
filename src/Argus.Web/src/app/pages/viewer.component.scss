@@ -129,20 +129,8 @@
   /* Pinch and drag handling are ours, not the browser's - otherwise iOS pans and zooms the page
      instead of the stream, and one-finger drags scroll the document. */
   touch-action: none;
-}
-
-/* Pinned rather than sized at 100%: the shell is min-height only, so no ancestor has a definite
-   height for a percentage to resolve against and the frame would collapse to nothing. */
-.stage argus-frame-view {
-  position: absolute;
-  inset: 0;
-}
-
-.stage.pannable {
-  cursor: grab;
-}
-
-.stage.mousing {
+  /* The stage is always live now, and the host's own cursor is not in the captured frame, so this
+     is the only thing telling you where a click will land. */
   cursor: crosshair;
   /* A long press is a right-click here, so the browser must not treat it as select-text or
      show iOS's copy/paste callout instead. */
@@ -151,8 +139,11 @@
   -webkit-touch-callout: none;
 }
 
-.stage.pannable:active {
-  cursor: grabbing;
+/* Pinned rather than sized at 100%: the shell is min-height only, so no ancestor has a definite
+   height for a percentage to resolve against and the frame would collapse to nothing. */
+.stage argus-frame-view {
+  position: absolute;
+  inset: 0;
 }
 
 /* ------------------------------------------------------- scroll buttons */
