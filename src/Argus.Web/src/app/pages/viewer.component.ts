@@ -293,7 +293,15 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.handle.set(handle);
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
     window.addEventListener('resize', this.onViewportResize);
+    // Capture, and on the document rather than on the sink input - see onKeyDown.
+    document.addEventListener('keydown', this.onKeyDown, true);
+    document.addEventListener('keyup', this.onKeyUp, true);
     await this.argus.refreshStatuses();
+
+    // The pad is remembered per device, so a viewer can open with it already showing and the icon
+    // already lit. Arm typing to match, rather than leaving it dead until the pad is touched.
+    // Next frame, because the sink input is not in the DOM yet during ngOnInit.
+    if (this.showKeyPad()) requestAnimationFrame(() => void this.focusApp());
   }
 
   ngOnDestroy(): void {
@@ -307,6 +315,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.clearModifiers();
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     window.removeEventListener('resize', this.onViewportResize);
+    document.removeEventListener('keydown', this.onKeyDown, true);
+    document.removeEventListener('keyup', this.onKeyUp, true);
     const handle = this.handle();
     if (handle) void this.argus.unsubscribe(handle);
   }
@@ -1121,21 +1131,33 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.keyboardSink()?.nativeElement.focus();
   }
 
-  protected onKeyDown(event: KeyboardEvent): void {
+  /**
+   * Typing is armed for the page, not for the hidden input.
+   *
+   * Listening on the sink alone only worked while the sink held focus, and on a desktop the very
+   * next click took it away - a toolbar button takes focus itself, and the stage is not focusable
+   * so clicking the picture hands focus to the body. The pad still said it was on and every
+   * keystroke after that went nowhere. The sink stays for what it is actually needed for: raising
+   * a phone's soft keyboard, and the beforeinput events that come back from it.
+   *
+   * Capture phase, so a control that happens to have focus - the zoom slider - does not act on the
+   * key before it is cancelled here.
+   */
+  private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
     event.preventDefault();
     void this.dispatch(event, 0);
-  }
+  };
 
-  protected onKeyUp(event: KeyboardEvent): void {
+  private readonly onKeyUp = (event: KeyboardEvent): void => {
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
     event.preventDefault();
     void this.dispatch(event, 1);
-  }
+  };
 
   /**
    * Soft keyboards on phones frequently report code/key as "Unidentified" on keydown, so the text
