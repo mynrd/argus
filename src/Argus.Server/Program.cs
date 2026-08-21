@@ -107,7 +107,7 @@ if (!app.Services.GetRequiredService<SessionGuard>().Required)
 {
     startupLog.LogWarning(
         "No password set - anyone who can reach this port can drive this desktop. "
-        + "Set Argus:Password in appsettings.json or the ARGUS_PASSWORD environment variable.");
+        + "Set Argus:Password in appsettings.json, or pass -Password to run.ps1.");
 }
 
 app.Run();

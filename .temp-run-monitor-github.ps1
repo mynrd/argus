@@ -29,18 +29,40 @@
 .PARAMETER Urls
     Passed through to run.ps1. Read the security note in run.ps1 before using it.
 
+.PARAMETER Password
+    Fallback viewer password, passed through to run.ps1. The server only uses it when
+    Argus:Password in src\Argus.Server\appsettings.json is empty; with both empty there is no lock.
+    `--password=value` is accepted as well, for callers that are used to that style.
+
 .EXAMPLE
     .\.temp-run-monitor-github.ps1
 .EXAMPLE
     .\.temp-run-monitor-github.ps1 -IntervalSeconds 60 -Port 8080
+.EXAMPLE
+    .\.temp-run-monitor-github.ps1 -Password 123455
+.EXAMPLE
+    .\.temp-run-monitor-github.ps1 --password=123455
 #>
-[CmdletBinding()]
+# PositionalBinding is off so an unnamed `--password=x` lands in $ExtraArgs instead of being
+# coerced into -IntervalSeconds, which is what happens with the default binder.
+[CmdletBinding(PositionalBinding = $false)]
+# The password has to reach the server as a plain env var, so SecureString would only be theatre.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password')]
 param(
     [int]$IntervalSeconds = 30,
     [int]$Port = 5227,
     [switch]$Dev,
-    [string]$Urls
+    [string]$Urls,
+    [string]$Password,
+    # PowerShell's binder does not understand `--password=x`, so catch it here rather than let it
+    # bind silently to some other positional parameter.
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ExtraArgs
 )
+
+foreach ($arg in $ExtraArgs) {
+    if ($arg -match '^--password=(.*)$') { $Password = $Matches[1]; continue }
+    throw "Unrecognized argument '$arg'."
+}
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -102,6 +124,7 @@ function Start-Argus {
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$runScript`"", '-Port', $Port)
     if ($Dev) { $argList += '-Dev' }
     if ($Urls) { $argList += @('-Urls', "`"$Urls`"") }
+    if ($Password) { $argList += @('-Password', "`"$Password`"") }
 
     Write-Watch "starting run.ps1 at $((Get-LocalSha).Substring(0,7))"
     return Start-Process -FilePath $hostExe -ArgumentList $argList -PassThru -NoNewWindow

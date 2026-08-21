@@ -26,6 +26,10 @@
     Override the listen addresses entirely, e.g. "http://0.0.0.0:5227".
     Read the security note below before using this.
 
+.PARAMETER Password
+    Fallback viewer password, used only when Argus:Password in appsettings.json is empty.
+    Passed to the server as ARGUS_PASSWORD. Leave both empty to run with no lock.
+
 .EXAMPLE
     .\run.ps1
 .EXAMPLE
@@ -44,11 +48,14 @@
     injection all fail there.
 #>
 [CmdletBinding()]
+# The password has to reach the server as a plain env var, so SecureString would only be theatre.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password')]
 param(
     [switch]$Dev,
     [int]$Port = 5227,
     [switch]$SkipBuild,
-    [string]$Urls
+    [string]$Urls,
+    [string]$Password
 )
 
 $ErrorActionPreference = 'Stop'
@@ -113,6 +120,18 @@ else {
 }
 
 $env:Argus__Port = $Port
+
+# Only a fallback: SessionGuard prefers Argus:Password from appsettings.json whenever that has a
+# value, so this env var is what unlocks the viewer only when the config entry is left empty.
+if ($Password) {
+    $env:ARGUS_PASSWORD = $Password
+    Write-Info 'password  from -Password (used only if Argus:Password in appsettings.json is empty)'
+}
+else {
+    # Clear a value left over from an earlier run in this same shell.
+    Remove-Item Env:\ARGUS_PASSWORD -ErrorAction SilentlyContinue
+}
+
 if ($Urls) {
     $env:ARGUS_URLS = $Urls
     Write-Host "    WARNING: overriding bind addresses with '$Urls'." -ForegroundColor Yellow
