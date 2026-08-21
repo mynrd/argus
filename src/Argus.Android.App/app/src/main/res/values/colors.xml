@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only what the platform needs before Compose paints. The app palette lives in ui/theme. -->
+<resources>
+    <color name="argus_bg">#0B0E14</color>
+    <color name="argus_accent">#4C9AFF</color>
+</resources>

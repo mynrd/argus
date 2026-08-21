@@ -215,5 +215,6 @@ src/Argus.Server/          ASP.NET Core host - capture, input, hub, frame socket
   Services/                watchdog, selection persistence, network binding
 src/Argus.ConsoleInject/   out-of-process WriteConsoleInput helper
 src/Argus.Web/             Angular 22 front end (builds into Argus.Server/wwwroot)
+src/Argus.Android.App/     Kotlin + Compose phone client - see its README to build the APK
 tests/Argus.Server.Tests/  unit + end-to-end tests
 ```

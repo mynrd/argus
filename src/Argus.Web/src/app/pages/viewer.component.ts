@@ -40,14 +40,27 @@ const MOVE_INTERVAL_MS = 30;
 interface MouseGesture {
   pointerId: number;
   touch: boolean;
+  /** Moving this pointer pans the picture instead of reaching the host. */
+  panning: boolean;
   startX: number;
   startY: number;
   button: MouseButton;
   /** Whether a button is currently held down on the host. */
   pressed: boolean;
   longPressFired: boolean;
+  /** Travelled past the drag threshold, so releasing is no longer a tap. */
+  moved: boolean;
   timer?: ReturnType<typeof setTimeout>;
 }
+
+/**
+ * Whether this device has a touch screen at all - true on a phone, a tablet, and a touch laptop.
+ *
+ * Only decides whether the touch-only controls are worth toolbar space. What a given gesture does
+ * is decided per event from PointerEvent.pointerType, so a hybrid laptop behaves like a mouse when
+ * you use the mouse and like a tablet when you use the screen.
+ */
+const TOUCH_DEVICE = window.matchMedia?.('(any-pointer: coarse)').matches ?? false;
 
 /** Keys we never forward - they would fight the browser rather than reach the app. */
 const SWALLOWED_CODES = new Set(['F5', 'F11', 'F12']);
@@ -111,13 +124,22 @@ export class ViewerComponent implements OnInit, OnDestroy {
   protected readonly zoom = signal(1);
   protected readonly panX = signal(0);
   protected readonly panY = signal(0);
-  protected readonly quality = signal<QualityLevel>(defaultQuality());
+  protected readonly quality = signal<QualityLevel>(QualityLevel.High);
   protected readonly sendKeys = signal(false);
   protected readonly lastKeyResult = signal<string | null>(null);
   protected readonly isFullscreen = signal(false);
-  protected readonly mouseMode = signal(false);
   protected readonly fitted = signal(false);
   protected readonly menu = signal<'quality' | 'size' | null>(null);
+
+  protected readonly touchDevice = TOUCH_DEVICE;
+
+  /**
+   * What a one-finger drag means. Clicking never depends on it: a tap is a left click and a hold
+   * is a right click either way. A finger just cannot mean both "move the picture" and "drag
+   * something on the host", so dragging something over there is the one thing that needs saying
+   * out loud. A mouse has buttons and a Shift key, so it never needs this.
+   */
+  protected readonly dragToHost = signal(false);
 
   /** Both floating overlays are remembered per device - see SettingsService. */
   protected readonly showScrollButtons = this.settings.showScrollButtons;
@@ -485,12 +507,13 @@ export class ViewerComponent implements OnInit, OnDestroy {
   }
 
   protected onWheel(event: WheelEvent): void {
-    // Scroll-to-zoom is the expectation on a desktop; the page itself never scrolls here.
+    // The page itself never scrolls here, whichever way this goes.
     event.preventDefault();
 
-    // In mouse mode the wheel belongs to the app being driven, not to the viewer. Ctrl+wheel is
-    // kept as local zoom so the view is still zoomable without switching mouse mode off.
-    if (this.mouseMode() && !event.ctrlKey) {
+    // The wheel belongs to the app being driven, exactly as it would if you were sitting at the
+    // machine. Ctrl+wheel is the viewer's own zoom - the same key a browser zooms with, and what
+    // a trackpad pinch already sends.
+    if (!event.ctrlKey) {
       this.queueScroll(event);
       return;
     }
@@ -511,7 +534,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.mouseMode()) this.beginMouseGesture(event);
+    this.beginMouseGesture(event);
   }
 
   protected onPointerMove(event: PointerEvent): void {
@@ -536,10 +559,22 @@ export class ViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.mouseMode()) {
+    const gesture = this.gesture;
+
+    if (gesture && !gesture.panning) {
       event.preventDefault();
       this.moveMouseGesture(event);
       return;
+    }
+
+    if (gesture && !gesture.moved) {
+      const travelled = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+      if (travelled >= DRAG_THRESHOLD_PX) {
+        // Past the threshold this is a drag, not a tap - so it must not click on release, and the
+        // pending hold must not fire a right-click into the middle of it.
+        gesture.moved = true;
+        this.clearLongPress(gesture);
+      }
     }
 
     // Single pointer drags the image. Clamping makes this a no-op at zoom 1, so there is no
@@ -572,30 +607,21 @@ export class ViewerComponent implements OnInit, OnDestroy {
     return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
   }
 
-  // ------------------------------------------------------------ mouse mode
+  // --------------------------------------------------------- driving the host
 
-  /**
-   * Turning it on foregrounds the window, because a click is delivered by moving the real cursor
-   * to those screen coordinates - if something else is stacked on top, that is what gets clicked.
-   */
-  protected async toggleMouseMode(): Promise<void> {
-    const next = !this.mouseMode();
-    this.mouseMode.set(next);
+  /** Only changes what a one-finger drag means - see dragToHost. */
+  protected toggleDragToHost(): void {
+    this.dragToHost.update((on) => !on);
     this.abortMouseGesture();
-    this.cancelPendingScroll();
-    // The buttons leave the DOM with the mode, so their pointerup may never arrive.
-    this.stopScrolling();
-
-    if (!next) return;
-
-    this.lastKeyResult.set(null);
-    const result = await this.argus.focusWindow(this.handle());
-    if (!result.focused && result.reason) this.lastKeyResult.set(result.reason);
   }
 
-  /** Right-click is sent from the pointer events; this only stops the browser's own menu. */
+  /**
+   * Right-click is sent from the pointer events, so the browser's own menu would be a second menu
+   * on top of the app's. The host window is raised by the server before every mouse event
+   * (MouseInjector.Send), so nothing here has to foreground it first.
+   */
   protected onContextMenu(event: Event): void {
-    if (this.mouseMode()) event.preventDefault();
+    event.preventDefault();
   }
 
   private beginMouseGesture(event: PointerEvent): void {
@@ -608,15 +634,21 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.gesture = {
       pointerId: event.pointerId,
       touch,
+      // Shift is the mouse's pan modifier, because every plain button belongs to the host now.
+      panning: touch ? !this.dragToHost() : event.shiftKey,
       startX: event.clientX,
       startY: event.clientY,
       button: buttonFor(event.button),
       pressed: false,
       longPressFired: false,
+      moved: false,
       timer: undefined,
     };
 
     if (!touch) {
+      // Shift+drag pans the picture and nothing else - no button is pressed over there at all.
+      if (this.gesture.panning) return;
+
       // A real mouse says which button it used up front, so press it immediately and let the
       // matching pointerup release it. Drag, select and drag-and-drop all fall out of that.
       this.gesture.pressed = true;
@@ -624,9 +656,10 @@ export class ViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // A finger does not. Hold it still and it means right-click; move it and it means drag; let
-    // go quickly and it means a plain tap. Nothing is sent until one of those is decided, because
-    // pressing a button early would make the long-press a left-press-then-right-click.
+    // A finger does not. Hold it still and it means right-click; let go quickly and it means a
+    // plain tap; move it and it means pan, or drag on the host if that is switched on. Nothing is
+    // sent until one of those is decided, because pressing a button early would make the
+    // long-press a left-press-then-right-click.
     this.gesture.timer = setTimeout(() => {
       const gesture = this.gesture;
       if (!gesture || gesture.pressed) return;
@@ -680,8 +713,12 @@ export class ViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Released before the hold completed and without moving: a tap, which is a left click.
-    if (!gesture.longPressFired) {
+    // A mouse either pressed on the way down or was panning, so there is no tap to work out.
+    if (!gesture.touch) return;
+
+    // Released before the hold completed and without moving: a tap, which is a left click. A
+    // finger that panned the picture is not a tap, however briefly it was down.
+    if (!gesture.longPressFired && !gesture.moved) {
       void this.dispatchMouse(MouseAction.Click, gesture.button, event);
     }
   }
@@ -1263,13 +1300,6 @@ function buttonFor(button: number): MouseButton {
 
 function clamp(value: number, min: number, max: number): number {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
-}
-
-/** Phones and slow links start lower; a viewer can always raise it. */
-function defaultQuality(): QualityLevel {
-  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const narrow = window.innerWidth < 700;
-  return coarse || narrow ? QualityLevel.Low : QualityLevel.Medium;
 }
 
 function codeForCharacter(character: string): string {
