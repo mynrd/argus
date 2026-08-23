@@ -15,11 +15,18 @@ const DEFAULT_SHOW_SCROLL_BUTTONS = true;
 /** The key pad covers more, so it stays off until asked for. */
 const DEFAULT_SHOW_KEY_PAD = false;
 
+/**
+ * Whether Send Text finishes with Enter. Off by default: an unasked-for Enter is a command run or
+ * a form submitted on the host, which is not something to do to someone by default.
+ */
+const DEFAULT_SEND_TEXT_ENTER = false;
+
 interface StoredSettings {
   autoLock?: boolean;
   idleMinutes?: number;
   showScrollButtons?: boolean;
   showKeyPad?: boolean;
+  sendTextEnter?: boolean;
 }
 
 /**
@@ -34,6 +41,7 @@ export class SettingsService {
   readonly idleMinutes = signal(DEFAULT_IDLE_MINUTES);
   readonly showScrollButtons = signal(DEFAULT_SHOW_SCROLL_BUTTONS);
   readonly showKeyPad = signal(DEFAULT_SHOW_KEY_PAD);
+  readonly sendTextEnter = signal(DEFAULT_SEND_TEXT_ENTER);
 
   constructor() {
     this.load();
@@ -43,6 +51,7 @@ export class SettingsService {
         idleMinutes: this.idleMinutes(),
         showScrollButtons: this.showScrollButtons(),
         showKeyPad: this.showKeyPad(),
+        sendTextEnter: this.sendTextEnter(),
       }),
     );
   }
@@ -67,6 +76,7 @@ export class SettingsService {
         this.showScrollButtons.set(stored.showScrollButtons);
       }
       if (typeof stored.showKeyPad === 'boolean') this.showKeyPad.set(stored.showKeyPad);
+      if (typeof stored.sendTextEnter === 'boolean') this.sendTextEnter.set(stored.sendTextEnter);
     } catch {
       // Corrupt or unavailable storage (private browsing) just means the defaults.
     }

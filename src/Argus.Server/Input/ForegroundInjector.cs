@@ -16,6 +16,9 @@ namespace Argus.Server.Input;
 /// </summary>
 public sealed class ForegroundInjector : IInputInjector
 {
+    /// <summary>How many key events one SendInput call carries when typing a block of text.</summary>
+    private const int TextBatchSize = 200;
+
     private readonly ILogger<ForegroundInjector> _log;
 
     public ForegroundInjector(ILogger<ForegroundInjector> log) => _log = log;
@@ -44,6 +47,117 @@ public sealed class ForegroundInjector : IInputInjector
         }
         return sent > 0;
     }
+
+    /// <summary>
+    /// Types a whole string into the target in one go, optionally followed by Enter.
+    ///
+    /// A block of text sent as individual key events would be one hub round trip and one
+    /// SetForegroundWindow per character - a hundred-character command line becomes a hundred
+    /// chances for a stray click on the host to steal the focus mid-word. Building every keystroke
+    /// up front and handing them to SendInput in batches keeps the whole paste atomic from the
+    /// app's point of view.
+    /// </summary>
+    public InjectionResult TrySendText(WindowInfo target, string text, bool submit)
+    {
+        var hwnd = (nint)target.Handle;
+        if (!NativeMethods.IsWindow(hwnd)) return new InjectionResult(false, Name, "That window is gone");
+        if (!Focus(hwnd)) return new InjectionResult(false, Name, "Could not bring that window to the front");
+
+        var inputs = BuildTextInputs(text, submit);
+        if (inputs.Length == 0) return new InjectionResult(false, Name, "Nothing to type");
+
+        int size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.INPUT>();
+
+        // In batches, because SendInput is atomic per call: one enormous array is more likely to be
+        // rejected outright, and a batch that fails tells us how far the text actually got.
+        for (int offset = 0; offset < inputs.Length; offset += TextBatchSize)
+        {
+            var batch = inputs[offset..Math.Min(offset + TextBatchSize, inputs.Length)];
+            uint sent = NativeMethods.SendInput((uint)batch.Length, batch, size);
+            if (sent == batch.Length) continue;
+
+            _log.LogWarning("SendInput delivered {Sent}/{Total} text events to {Title}",
+                offset + sent, inputs.Length, target.Title);
+
+            return new InjectionResult(
+                false,
+                Name,
+                offset + sent == 0 ? "not delivered" : "Only part of the text was typed");
+        }
+
+        return new InjectionResult(true, Name);
+    }
+
+    /// <summary>
+    /// Every keystroke a block of text is worth, in order.
+    ///
+    /// Printable characters travel as Unicode so the host's keyboard layout cannot change what
+    /// arrives. Tab and the line breaks cannot: KEYEVENTF_UNICODE would hand the app a literal
+    /// control character, which a text box shows as a box and a shell ignores, so they go through
+    /// as the real keys instead. CRLF is one Enter, not two.
+    /// </summary>
+    internal static NativeMethods.INPUT[] BuildTextInputs(string? text, bool submit)
+    {
+        string body = text ?? string.Empty;
+        var inputs = new List<NativeMethods.INPUT>(body.Length * 2 + 2);
+        bool endedWithNewLine = false;
+
+        for (int i = 0; i < body.Length; i++)
+        {
+            char character = body[i];
+            endedWithNewLine = false;
+
+            if (character is '\r' or '\n')
+            {
+                // CRLF is one Enter, not two.
+                if (character == '\r' && i + 1 < body.Length && body[i + 1] == '\n') i++;
+                AddNamedKey(inputs, "Enter");
+                endedWithNewLine = true;
+                continue;
+            }
+
+            if (character == '\t')
+            {
+                AddNamedKey(inputs, "Tab");
+                continue;
+            }
+
+            // Anything else a keyboard could not produce is dropped rather than typed as a box:
+            // a stray NUL or bell in a paste is noise, not input.
+            if (char.IsControl(character)) continue;
+
+            inputs.Add(UnicodeInput(character, up: false));
+            inputs.Add(UnicodeInput(character, up: true));
+        }
+
+        // The Hit Enter box, skipped when the text already ended in a line break - the box means
+        // "finish with Enter", and a second one would submit an empty line after the real one.
+        if (submit && !endedWithNewLine) AddNamedKey(inputs, "Enter");
+
+        return [.. inputs];
+    }
+
+    private static void AddNamedKey(List<NativeMethods.INPUT> inputs, string code)
+    {
+        var mapped = KeyMapper.Map(code);
+        if (!mapped.IsValid) return;
+
+        uint flags = mapped.IsExtended ? NativeMethods.KEYEVENTF_EXTENDEDKEY : 0;
+        inputs.Add(KeyInput(mapped.VirtualKey, mapped.ScanCode, flags));
+        inputs.Add(KeyInput(mapped.VirtualKey, mapped.ScanCode, flags | NativeMethods.KEYEVENTF_KEYUP));
+    }
+
+    private static NativeMethods.INPUT UnicodeInput(char character, bool up) =>
+        KeyInput(0, character, NativeMethods.KEYEVENTF_UNICODE | (up ? NativeMethods.KEYEVENTF_KEYUP : 0));
+
+    private static NativeMethods.INPUT KeyInput(ushort vk, ushort scan, uint flags) => new()
+    {
+        Type = NativeMethods.INPUT_KEYBOARD,
+        Union = new NativeMethods.InputUnion
+        {
+            Keyboard = new NativeMethods.KEYBDINPUT { Vk = vk, Scan = scan, Flags = flags },
+        },
+    };
 
     internal static NativeMethods.INPUT[] BuildInputs(KeyEventDto keyEvent)
     {
