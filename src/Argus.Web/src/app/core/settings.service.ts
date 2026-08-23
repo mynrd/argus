@@ -16,6 +16,13 @@ const DEFAULT_SHOW_SCROLL_BUTTONS = true;
 const DEFAULT_SHOW_KEY_PAD = false;
 
 /**
+ * Whether the device's own keyboard types into the app while the key pad is open. On by default,
+ * because that is what the key pad has always done - it is turned off by the people it gets in the
+ * way of, which is anyone sitting at a real keyboard who wants Send Text to be the only way in.
+ */
+const DEFAULT_ALLOW_TYPING = true;
+
+/**
  * Whether Send Text finishes with Enter. Off by default: an unasked-for Enter is a command run or
  * a form submitted on the host, which is not something to do to someone by default.
  */
@@ -26,6 +33,7 @@ interface StoredSettings {
   idleMinutes?: number;
   showScrollButtons?: boolean;
   showKeyPad?: boolean;
+  allowTyping?: boolean;
   sendTextEnter?: boolean;
 }
 
@@ -41,6 +49,7 @@ export class SettingsService {
   readonly idleMinutes = signal(DEFAULT_IDLE_MINUTES);
   readonly showScrollButtons = signal(DEFAULT_SHOW_SCROLL_BUTTONS);
   readonly showKeyPad = signal(DEFAULT_SHOW_KEY_PAD);
+  readonly allowTyping = signal(DEFAULT_ALLOW_TYPING);
   readonly sendTextEnter = signal(DEFAULT_SEND_TEXT_ENTER);
 
   constructor() {
@@ -51,6 +60,7 @@ export class SettingsService {
         idleMinutes: this.idleMinutes(),
         showScrollButtons: this.showScrollButtons(),
         showKeyPad: this.showKeyPad(),
+        allowTyping: this.allowTyping(),
         sendTextEnter: this.sendTextEnter(),
       }),
     );
@@ -76,6 +86,7 @@ export class SettingsService {
         this.showScrollButtons.set(stored.showScrollButtons);
       }
       if (typeof stored.showKeyPad === 'boolean') this.showKeyPad.set(stored.showKeyPad);
+      if (typeof stored.allowTyping === 'boolean') this.allowTyping.set(stored.allowTyping);
       if (typeof stored.sendTextEnter === 'boolean') this.sendTextEnter.set(stored.sendTextEnter);
     } catch {
       // Corrupt or unavailable storage (private browsing) just means the defaults.
