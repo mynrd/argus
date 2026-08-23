@@ -301,6 +301,18 @@ export class ArgusService {
     return result ?? { delivered: false, reason: 'Not connected' };
   }
 
+  /**
+   * Types a whole block of text into the window, optionally pressing Enter after it.
+   *
+   * One call for the lot rather than a SendKey per character: a phone typing a command line over
+   * a tailnet would otherwise pay a round trip per keystroke, and anything that grabbed the
+   * host's foreground half way through would split the text between two windows.
+   */
+  async sendText(handle: number, text: string, submit: boolean): Promise<SendKeyResult> {
+    const result = await this.invoke<SendKeyResult>('SendText', String(handle), text, submit);
+    return result ?? { delivered: false, reason: 'Not connected' };
+  }
+
   /** Resizes the host window. Width and height are the visible size, not the outer window rect. */
   async resizeWindow(
     handle: number,

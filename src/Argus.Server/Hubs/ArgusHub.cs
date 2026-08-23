@@ -13,6 +13,9 @@ namespace Argus.Server.Hubs;
 /// </summary>
 public sealed class ArgusHub : Hub
 {
+    /// <summary>Longest block of text one SendText call will type.</summary>
+    private const int MaxTextLength = 10_000;
+
     private readonly CaptureManager _capture;
     private readonly InputRouter _input;
     private readonly SelectionStore _selection;
@@ -142,6 +145,50 @@ public sealed class ArgusHub : Hub
         }
 
         var result = _input.Send(session.Info, keyEvent, mode);
+        return new { delivered = result.Delivered, backend = result.Backend, reason = result.Reason };
+    }
+
+    /// <summary>
+    /// Types a block of text into the window in one go, optionally pressing Enter after it.
+    ///
+    /// Sending it as text rather than as a stream of SendKey calls is what makes it usable from a
+    /// phone: one round trip for a whole command line instead of one per character, and the app
+    /// cannot be interrupted half way through by something else grabbing the foreground.
+    /// </summary>
+    public object SendText(string windowId, string? text, bool submit)
+    {
+        if (!long.TryParse(windowId, out long handle))
+        {
+            return new { delivered = false, reason = "Bad window id" };
+        }
+
+        var session = _capture.Find(handle);
+        if (session is null)
+        {
+            return new { delivered = false, reason = "That window is not attached" };
+        }
+
+        string body = text ?? string.Empty;
+        if (body.Length == 0 && !submit)
+        {
+            return new { delivered = false, reason = "Nothing to type" };
+        }
+
+        // A cap rather than no limit: every character is two SendInput events on the host, and a
+        // paste of a whole file would hold the desktop hostage for minutes with no way to stop it.
+        if (body.Length > MaxTextLength)
+        {
+            return new
+            {
+                delivered = false,
+                reason = $"That is more than {MaxTextLength} characters - send it in smaller pieces",
+            };
+        }
+
+        var result = _input.SendText(session.Info, body, submit);
+        _log.LogInformation("Typed {Length} characters into '{Title}' (enter: {Submit}): {Delivered}",
+            body.Length, session.Info.Title, submit, result.Delivered);
+
         return new { delivered = result.Delivered, backend = result.Backend, reason = result.Reason };
     }
 
