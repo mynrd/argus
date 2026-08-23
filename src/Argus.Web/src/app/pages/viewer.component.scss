@@ -353,6 +353,68 @@
   border-color: var(--accent);
 }
 
+/* ------------------------------------------------------------ send text */
+
+/* Wider than a list of choices, because what goes in it is a command line or a URL and wrapping
+   one of those every few words makes it unreadable. */
+.sheet.send-text {
+  width: min(100%, 460px);
+  gap: 0.6rem;
+}
+
+.send-text textarea {
+  width: 100%;
+  /* Resizing is the user's call - a paste of several lines wants more room than a command does. */
+  resize: vertical;
+  min-height: 5.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  /* Monospace: this text is typed into a terminal or an address bar as often as into prose, and
+     those are the cases where telling l from 1 matters. */
+  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.send-text textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.send-text .check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* The whole row is the hit area, not just the 20px box - this is used from a phone. */
+  min-height: var(--tap-target);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.send-text .check .hint {
+  font-size: 0.75rem;
+}
+
+.send-text .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Landscape phone: a soft keyboard leaves very little height, so the box gives some back. */
+@media (max-height: 450px) and (orientation: landscape) {
+  .send-text textarea {
+    min-height: 3.5rem;
+  }
+
+  .send-text .check .hint {
+    display: none;
+  }
+}
+
 /* Errors sit directly under the bar now that there is no control panel to host them. */
 .strip {
   border-radius: 0;

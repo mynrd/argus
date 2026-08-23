@@ -148,6 +148,23 @@ nor `WriteConsoleInput` can reach them. Focus mode is the only option there.
 detach the server from its own console and kill its logging. One helper is kept alive per target
 console and fed over stdin.
 
+### Send Text
+
+The viewer's toolbar - the one that stays on screen in full screen - has a **Send Text** button. It
+opens a box, and Send types the whole block into the window at once, with a **Hit Enter** checkbox
+for finishing on Enter.
+
+This exists because typing live from a phone is one hub round trip and one `SetForegroundWindow`
+per character, with a soft keyboard over the picture while you do it. A URL or a command line is
+easier to compose in a box, check, and then hand over in one go - and one `SendInput` batch cannot
+be split between two windows by something stealing the foreground half way through.
+
+Line breaks and tabs in the text are sent as the real Enter and Tab keys rather than as characters,
+because a literal `\n` does nothing in a shell and shows as a box in a text field. CRLF counts as
+one Enter, and text that already ends in a newline is not given a second one by the checkbox. Other
+control characters are dropped. Text goes through the Focus backend whatever the window is, and is
+capped at 10,000 characters per send.
+
 ---
 
 ## Health loop
@@ -186,12 +203,12 @@ Override only if you mean it:
 ## Tests
 
 ```powershell
-dotnet test                        # 123 tests
+dotnet test                        # 133 tests
 cd src\Argus.Web && npx ng test    # 4 tests
 ```
 
-The .NET suite covers key mapping, quality presets, window filtering and re-attach matching, the
-frame wire format, Tailscale address detection, JPEG encoding, and client-registry identity. It
+The .NET suite covers key mapping, text injection, quality presets, window filtering and re-attach
+matching, the frame wire format, Tailscale address detection, JPEG encoding, and client-registry identity. It
 also includes end-to-end tests that launch the real server and drive it exactly as the browser does
 - SignalR plus a raw WebSocket - asserting that frames actually arrive, that changing quality
 changes the frame size, and that detaching stops the stream.

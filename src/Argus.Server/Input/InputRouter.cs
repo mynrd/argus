@@ -67,6 +67,32 @@ public sealed class InputRouter
     }
 
     /// <summary>
+    /// Types a block of text into the window, optionally followed by Enter.
+    ///
+    /// Always the foreground backend, whatever the window's background support says. Text is only
+    /// worth sending if it arrives intact, and PostMessage cannot promise that for the apps a
+    /// typed-out command is most often aimed at - a browser address bar or a terminal.
+    /// </summary>
+    public InjectionResult SendText(WindowInfo target, string text, bool submit)
+    {
+        try
+        {
+            var result = _foreground.TrySendText(target, text, submit);
+            if (!result.Delivered)
+            {
+                _log.LogDebug("Could not type {Length} characters into {Title}: {Reason}",
+                    text.Length, target.Title, result.Reason);
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Typing text into {Title} threw", target.Title);
+            return new InjectionResult(false, _foreground.Name, ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Reports which backend would be used, so the UI can warn before the user types rather than
     /// after nothing happens.
     /// </summary>
