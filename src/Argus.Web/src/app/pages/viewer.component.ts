@@ -119,6 +119,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
   private readonly viewerEl = viewChild<ElementRef<HTMLElement>>('viewer');
   private readonly stageEl = viewChild<ElementRef<HTMLElement>>('stage');
   private readonly keyPad = viewChild<ElementRef<HTMLElement>>('keyPad');
+  private readonly sendTextBox = viewChild<ElementRef<HTMLTextAreaElement>>('sendTextBox');
 
   protected readonly handle = signal(0);
   protected readonly zoom = signal(1);
@@ -130,6 +131,16 @@ export class ViewerComponent implements OnInit, OnDestroy {
   protected readonly isFullscreen = signal(false);
   protected readonly fitted = signal(false);
   protected readonly menu = signal<'quality' | 'size' | null>(null);
+
+  /** The Send Text panel: its own overlay rather than a menu, because it holds an editable field. */
+  protected readonly sendTextOpen = signal(false);
+  protected readonly textToSend = signal('');
+  protected readonly sending = signal(false);
+
+  /** Remembered per device, like the other viewer toggles - see SettingsService. */
+  protected readonly sendTextEnter = this.settings.sendTextEnter;
+
+  protected readonly canSendText = computed(() => this.textToSend().length > 0 && !this.sending());
 
   protected readonly touchDevice = TOUCH_DEVICE;
 
@@ -1146,6 +1157,82 @@ export class ViewerComponent implements OnInit, OnDestroy {
       });
   }
 
+  // -------------------------------------------------------------- send text
+
+  /**
+   * Types a block of text into the app in one go, rather than a key at a time.
+   *
+   * Typing live from a phone means a hub round trip per character and a soft keyboard covering the
+   * picture while you do it, and a URL or a command line is exactly the kind of thing that is
+   * easier to compose in a box, check, and then hand over. Hit Enter is what turns that into
+   * "run it" for a terminal or "go" for an address bar.
+   */
+  protected openSendText(): void {
+    this.sendTextOpen.set(true);
+    this.lastKeyResult.set(null);
+
+    // Nothing held may survive the panel: keys typed into the box do not reach the host, so a
+    // locked Ctrl would still be down over there when the text arrives.
+    this.releasePadKey();
+    this.clearModifiers();
+
+    // The box takes the keyboard off the sink, so the soft keyboard on a phone types here rather
+    // than into the app. Next frame, because it is not in the DOM until the panel renders.
+    requestAnimationFrame(() => this.sendTextBox()?.nativeElement.focus());
+  }
+
+  /** Leaves the text where it is: a panel closed by accident should not lose what was typed. */
+  protected closeSendText(): void {
+    if (!this.sendTextOpen()) return;
+
+    this.sendTextOpen.set(false);
+    // The key pad puts typing back where it was, if it is still on.
+    if (this.showKeyPad()) requestAnimationFrame(() => this.restoreTyping());
+  }
+
+  protected onSendTextInput(value: string): void {
+    this.textToSend.set(value);
+  }
+
+  protected toggleSendTextEnter(): void {
+    this.sendTextEnter.update((on) => !on);
+  }
+
+  /**
+   * Hands the whole block to the server, which foregrounds the window once and replays it with
+   * SendInput - see ForegroundInjector.TrySendText.
+   *
+   * The panel closes on success so the app is visible again, and stays open with the text intact
+   * on failure, because the text is the thing worth keeping when a send does not land.
+   */
+  protected async sendText(): Promise<void> {
+    if (!this.canSendText()) return;
+
+    this.sending.set(true);
+    try {
+      const result = await this.argus.sendText(
+        this.handle(),
+        this.textToSend(),
+        this.sendTextEnter(),
+      );
+
+      if (!result.delivered) {
+        this.lastKeyResult.set(result.reason ?? 'Could not type that into the window');
+        return;
+      }
+
+      this.lastKeyResult.set(null);
+      this.textToSend.set('');
+      this.sendTextOpen.set(false);
+
+      // The window is in the foreground on the host now, so leave typing armed the way the key
+      // pad would - the next keystroke here lands in the app rather than nowhere.
+      if (this.showKeyPad()) requestAnimationFrame(() => this.restoreTyping());
+    } finally {
+      this.sending.set(false);
+    }
+  }
+
   // ------------------------------------------------------------------ input
 
   /**
@@ -1181,6 +1268,9 @@ export class ViewerComponent implements OnInit, OnDestroy {
    * key before it is cancelled here.
    */
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // The Send Text box is a field on this page, not a keyboard for the host: forwarding while it
+    // is open would type every character into the app as well as into the box.
+    if (this.sendTextOpen()) return;
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
@@ -1189,6 +1279,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
+    if (this.sendTextOpen()) return;
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
@@ -1201,6 +1292,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
    * they insert is picked up here instead and replayed as character events.
    */
   protected onBeforeInput(event: Event): void {
+    if (this.sendTextOpen()) return;
     if (!this.sendKeys()) return;
 
     const input = event as InputEvent;

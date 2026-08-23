@@ -115,6 +115,25 @@
         </button>
       }
 
+      <!-- Typing a block of text at once, rather than a key at a time - the practical way to get a
+           command or a URL into the app from a phone. Lives next to the key pad because both are
+           the same job: reaching the app's keyboard. -->
+      <button
+        type="button"
+        class="icon"
+        [class.on]="sendTextOpen()"
+        [attr.aria-pressed]="sendTextOpen()"
+        (click)="openSendText()"
+        aria-label="Send text to the app"
+        title="Send text"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          <line x1="7" y1="8" x2="17" y2="8" />
+          <line x1="7" y1="12" x2="13" y2="12" />
+        </svg>
+      </button>
+
       <button
         type="button"
         class="icon"
@@ -206,6 +225,45 @@
             </button>
           }
         }
+      </div>
+    </div>
+  }
+
+  <!-- Its own overlay rather than one of the menus above: it holds an editable field, and while it
+       is open the page's keys belong to that field instead of to the app - see onKeyDown. -->
+  @if (sendTextOpen()) {
+    <div class="overlay" (click)="closeSendText()">
+      <div class="sheet send-text" (click)="$event.stopPropagation()">
+        <h2>Send text</h2>
+
+        <textarea
+          #sendTextBox
+          rows="4"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          aria-label="Text to type into the app"
+          placeholder="Typed into the window as if you were at the keyboard"
+          [value]="textToSend()"
+          (input)="onSendTextInput($any($event.target).value)"
+          (keydown.escape)="closeSendText()"
+          (keydown.control.enter)="sendText()"
+          (keydown.meta.enter)="sendText()"
+        ></textarea>
+
+        <label class="check">
+          <input type="checkbox" [checked]="sendTextEnter()" (change)="toggleSendTextEnter()" />
+          <span>Hit Enter</span>
+          <span class="muted hint">presses Enter once the text is in</span>
+        </label>
+
+        <div class="actions">
+          <button type="button" class="ghost" (click)="closeSendText()">Cancel</button>
+          <button type="button" class="primary" [disabled]="!canSendText()" (click)="sendText()">
+            {{ sending() ? 'Sending…' : 'Send' }}
+          </button>
+        </div>
       </div>
     </div>
   }
