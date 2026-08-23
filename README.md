@@ -148,6 +148,20 @@ nor `WriteConsoleInput` can reach them. Focus mode is the only option there.
 detach the server from its own console and kill its logging. One helper is kept alive per target
 console and fed over stdin.
 
+### Allow Type
+
+The floating key pad has an **Allow Type** switch, on by default.
+
+On, the pad works as it always has: opening it foregrounds the app on the host and arms this
+device's keyboard, so whatever you type here is forwarded. That is what you want on a phone, where
+the pad and the soft keyboard turn up together.
+
+Off, the pad is only its buttons. The keyboard in front of you stays the browser's, and text
+reaches the app through Send Text instead. This is the setting for a desktop next to a live viewer,
+where a real keyboard otherwise types into whatever is open on the watched machine by accident.
+Either way the pad's own keys still reach the host, so Esc, the arrows and Ctrl combos are a tap
+away. The choice is remembered per device.
+
 ### Send Text
 
 The viewer's toolbar - the one that stays on screen in full screen - has a **Send Text** button. It

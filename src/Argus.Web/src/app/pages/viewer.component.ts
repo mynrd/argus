@@ -156,6 +156,16 @@ export class ViewerComponent implements OnInit, OnDestroy {
   protected readonly showScrollButtons = this.settings.showScrollButtons;
   protected readonly showKeyPad = this.settings.showKeyPad;
 
+  /**
+   * Whether this device's own keyboard types into the app while the pad is open.
+   *
+   * Off, the pad is only its buttons: the physical keyboard in front of you stays the browser's,
+   * and text goes to the app through Send Text instead. That distinction only matters on a machine
+   * that has a real keyboard - on a phone the pad and the soft keyboard arrive together - which is
+   * why it is a switch rather than a rule. Remembered per device, like the pad itself.
+   */
+  protected readonly allowTyping = this.settings.allowTyping;
+
   /** The F row doubles the pad's height, so it is opened only when wanted. */
   protected readonly showFunctionKeys = signal(false);
 
@@ -334,7 +344,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
     // The pad is remembered per device, so a viewer can open with it already showing and the icon
     // already lit. Arm typing to match, rather than leaving it dead until the pad is touched.
     // Next frame, because the sink input is not in the DOM yet during ngOnInit.
-    if (this.showKeyPad()) requestAnimationFrame(() => void this.focusApp());
+    if (this.showKeyPad() && this.allowTyping()) requestAnimationFrame(() => void this.focusApp());
   }
 
   ngOnDestroy(): void {
@@ -895,14 +905,15 @@ export class ViewerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * The pad is the switch for typing, not just a row of extra keys: showing it foregrounds the app
-   * on the host and arms the keyboard, hiding it puts everything back down.
+   * With Allow Type on, the pad is the switch for typing as well as a row of extra keys: showing it
+   * foregrounds the app on the host and arms the keyboard, hiding it puts everything back down.
+   * With Allow Type off it is only the buttons, so showing it arms nothing.
    */
   protected toggleKeyPad(): void {
     this.showKeyPad.update((on) => !on);
 
     if (this.showKeyPad()) {
-      void this.focusApp();
+      if (this.allowTyping()) void this.focusApp();
       return;
     }
 
@@ -930,7 +941,30 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
     // A shorter pad can sit where a taller one could not, and the reverse.
     requestAnimationFrame(() => this.clampPadOffset());
-    void this.focusApp();
+    if (this.allowTyping()) void this.focusApp();
+  }
+
+  /**
+   * Allow Type: whether the keyboard in front of you belongs to the app or to the browser.
+   *
+   * Turning it off is the point of the switch - a real keyboard next to a live viewer types into
+   * whatever is on the host by accident, and there is now a Send Text box for the times you mean
+   * it. Turning it back on arms typing immediately rather than waiting for the pad to be touched,
+   * because the tap that turned it on is the request.
+   */
+  protected toggleAllowTyping(): void {
+    this.allowTyping.update((on) => !on);
+
+    if (this.allowTyping()) {
+      void this.focusApp();
+      return;
+    }
+
+    // Disarm now, and let the sink go so a phone's soft keyboard and its autofill bar drop away.
+    // Locked modifiers stay: they belong to the pad's own keys, which still work.
+    this.sendKeys.set(false);
+    this.lastKeyResult.set(null);
+    this.keyboardSink()?.nativeElement.blur();
   }
 
   protected toggleFunctionKeys(): void {
@@ -946,6 +980,10 @@ export class ViewerComponent implements OnInit, OnDestroy {
    */
   protected keepTyping(event: Event): void {
     event.preventDefault();
+
+    // With Allow Type off there is no keyboard to keep: cancelling the default action above is the
+    // whole job, so a tapped button does not sit there focused and swallow the next Enter.
+    if (!this.allowTyping()) return;
 
     // Touching the pad at all is a request for the app: with the pad open on a viewer that has not
     // armed typing yet, this is what arms it. focusApp sets the flag first, so it runs once.

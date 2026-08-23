@@ -251,6 +251,11 @@
   font-size: 0.95rem;
 }
 
+/* Wider than the other alt keys because it is the one with a word on it rather than a glyph. */
+.key.type {
+  min-width: 3.2rem;
+}
+
 .key.grip {
   min-width: 2.2rem;
   font-size: 1.1rem;
