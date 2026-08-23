@@ -140,10 +140,14 @@
         [class.on]="showKeyPad()"
         [attr.aria-pressed]="showKeyPad()"
         (click)="toggleKeyPad()"
-        [attr.aria-label]="
-          showKeyPad() ? 'Hide the key pad and stop typing' : 'Show the key pad and type in the app'
+        [attr.aria-label]="showKeyPad() ? 'Hide the key pad' : 'Show the key pad'"
+        [title]="
+          showKeyPad()
+            ? 'Key pad: on'
+            : allowTyping()
+              ? 'Key pad: off - tap to type in the app'
+              : 'Key pad: off - tap for the extra keys'
         "
-        [title]="showKeyPad() ? 'Key pad: on' : 'Key pad: off - tap to type in the app'"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="2" y="6" width="20" height="12" rx="2" />
@@ -375,6 +379,28 @@
                 {{ mod.label }}
               </button>
             }
+
+            <!-- Whether this device's keyboard belongs to the app or to the browser. Off, the pad
+                 is only its buttons and text goes through Send Text - see toggleAllowTyping. -->
+            <button
+              type="button"
+              class="key alt-key type"
+              [class.latched]="allowTyping()"
+              [attr.aria-pressed]="allowTyping()"
+              (pointerdown)="toggleAllowTyping()"
+              [attr.aria-label]="
+                allowTyping()
+                  ? 'Allow type is on - stop this keyboard typing into the app'
+                  : 'Allow type is off - let this keyboard type into the app'
+              "
+              [title]="
+                allowTyping()
+                  ? 'Allow type: on - this keyboard types into the app'
+                  : 'Allow type: off - use Send Text instead'
+              "
+            >
+              Type
+            </button>
 
             <button
               type="button"
