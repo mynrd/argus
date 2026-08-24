@@ -13,6 +13,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { FrameViewComponent } from '../core/frame-view.component';
 import { ArgusService } from '../core/argus.service';
+import { SessionService } from '../core/session.service';
 import { SettingsService } from '../core/settings.service';
 import {
   InjectionMode,
@@ -113,6 +114,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly settings = inject(SettingsService);
+  private readonly session = inject(SessionService);
 
   private readonly keyboardSink = viewChild<ElementRef<HTMLInputElement>>('keyboardSink');
   private readonly frameView = viewChild(FrameViewComponent);
@@ -311,6 +313,18 @@ export class ViewerComponent implements OnInit, OnDestroy {
       if (!handle || !this.argus.connected()) return;
 
       void this.argus.subscribe(handle, quality);
+    });
+
+    // The lock screen is drawn over this page rather than routed to, so the viewer keeps running
+    // behind it with its document key listeners attached. Armed typing there cancels every key on
+    // the password box and forwards it to the host instead - disarm the moment the session locks.
+    effect(() => {
+      if (!this.session.locked()) return;
+
+      this.releasePadKey();
+      this.clearModifiers();
+      this.sendKeys.set(false);
+      this.keyboardSink()?.nativeElement.blur();
     });
 
     // A quality switch or a resize of the host window changes the frame's pixel size, which
@@ -1309,6 +1323,9 @@ export class ViewerComponent implements OnInit, OnDestroy {
     // The Send Text box is a field on this page, not a keyboard for the host: forwarding while it
     // is open would type every character into the app as well as into the box.
     if (this.sendTextOpen()) return;
+    // Belt and braces with the disarming effect, which only runs once change detection flushes:
+    // a key pressed in between must not reach the host, least of all one meant for the password.
+    if (this.session.locked()) return;
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
@@ -1318,6 +1335,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     if (this.sendTextOpen()) return;
+    if (this.session.locked()) return;
     if (!this.sendKeys()) return;
     if (SWALLOWED_CODES.has(event.code)) return;
 
@@ -1331,6 +1349,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
    */
   protected onBeforeInput(event: Event): void {
     if (this.sendTextOpen()) return;
+    if (this.session.locked()) return;
     if (!this.sendKeys()) return;
 
     const input = event as InputEvent;
