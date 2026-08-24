@@ -265,15 +265,27 @@ and the target app being closed and reopened. Stored in `%LOCALAPPDATA%\Argus\se
 
 Argus injects keystrokes into your desktop and **has no authentication**.
 
-It binds to loopback plus your Tailscale address only - detected automatically from the
-`100.64.0.0/10` CGNAT range. It never binds `0.0.0.0` by default, because that would expose desktop
-control to every network the machine ever joins.
+It binds three kinds of address, all detected automatically:
 
-Override only if you mean it:
+| | Address | Detected by |
+|---|---|---|
+| loopback | `127.0.0.1` | always |
+| tailnet | e.g. `100.95.145.54` | the `100.64.0.0/10` CGNAT range |
+| lan | e.g. `192.168.68.56` | the RFC 1918 ranges (`10/8`, `172.16/12`, `192.168/16`) |
+
+So `.\run.ps1` with no arguments is reachable from another machine on the same wifi. The startup
+banner prints every URL it is listening on.
+
+It still never binds `0.0.0.0` by default - that would follow the machine onto public networks it
+joins later, such as a hotel or cafe hotspot. Override only if you mean it:
 
 ```powershell
-.\run.ps1 -Urls "http://0.0.0.0:5227"     # don't do this on untrusted wifi
+.\run.ps1 -Urls "http://0.0.0.0:5227"     # every interface, public ones included
 ```
+
+**Windows Firewall.** LAN access also needs an inbound allow rule for the port on the profile your
+wifi adapter is using. Check with `Get-NetConnectionProfile`; a home network left on `Public` will
+drop the connection even though Argus is listening on the address.
 
 `tailscale serve` in front of Argus gets you HTTPS on the tailnet if you want it.
 

@@ -24,7 +24,7 @@
 
 .PARAMETER Urls
     Override the listen addresses entirely, e.g. "http://0.0.0.0:5227".
-    Read the security note below before using this.
+    Not needed for LAN access - that is on by default. Read the security note below.
 
 .PARAMETER Password
     Fallback viewer password, used only when Argus:Password in appsettings.json is empty.
@@ -38,10 +38,12 @@
     .\run.ps1 -Port 8080
 
 .NOTES
-    SECURITY: Argus injects keystrokes into your desktop and has no authentication. By default it
-    binds to loopback plus your Tailscale address only, so it is reachable from your tailnet and
-    nowhere else. Passing -Urls http://0.0.0.0:... exposes desktop control to every network this
-    machine ever joins. Do not do that on untrusted wifi.
+    SECURITY: Argus injects keystrokes into your desktop. By default it binds loopback, your
+    Tailscale address, and your private LAN addresses, so it is reachable from your tailnet and
+    from other machines on the same wifi or office network. Set -Password (or Argus:Password in
+    appsettings.json) before using it on a network you do not control - with both empty the viewer
+    is open to anyone who can reach the port. Passing -Urls http://0.0.0.0:... goes further still
+    and binds every interface, including public ones.
 
     Argus must run as a normal user process, NOT as a Windows service. Services run in session 0,
     which has no access to the interactive desktop - window enumeration, capture and input
@@ -106,9 +108,17 @@ if (-not $SkipBuild) {
 
 # ------------------------------------------------------------------ address
 
-$tailscaleIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPAddress -like '100.*' -and $_.PrefixOrigin -ne 'WellKnown' } |
-    Select-Object -First 1 -ExpandProperty IPAddress)
+# Mirrors NetworkBinding.Resolve on the server: loopback, Tailscale, and the private LAN.
+$ipv4 = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.PrefixOrigin -ne 'WellKnown' }
+
+$tailscaleIp = $ipv4 |
+    Where-Object { $_.IPAddress -like '100.*' } |
+    Select-Object -First 1 -ExpandProperty IPAddress
+
+$lanIps = $ipv4 |
+    Where-Object { $_.IPAddress -match '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' } |
+    Select-Object -ExpandProperty IPAddress
 
 Write-Step 'Starting Argus'
 Write-Info "server   http://127.0.0.1:$Port"
@@ -116,7 +126,13 @@ if ($tailscaleIp) {
     Write-Info "tailnet  http://${tailscaleIp}:$Port"
 }
 else {
-    Write-Info 'tailnet  (no Tailscale address detected - localhost only)'
+    Write-Info 'tailnet  (no Tailscale address detected)'
+}
+foreach ($lan in $lanIps) {
+    Write-Info "lan      http://${lan}:$Port"
+}
+if (-not $lanIps) {
+    Write-Info 'lan      (no private LAN address detected)'
 }
 
 $env:Argus__Port = $Port
