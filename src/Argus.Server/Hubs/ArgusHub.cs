@@ -18,6 +18,8 @@ public sealed class ArgusHub : Hub
 
     private readonly CaptureManager _capture;
     private readonly InputRouter _input;
+    private readonly KeyReleaser _keyReleaser;
+    private readonly HeldInputTracker _held;
     private readonly SelectionStore _selection;
     private readonly ApplicationLauncher _launcher;
     private readonly OpenWithLauncher _openWith;
@@ -26,6 +28,8 @@ public sealed class ArgusHub : Hub
     public ArgusHub(
         CaptureManager capture,
         InputRouter input,
+        KeyReleaser keyReleaser,
+        HeldInputTracker held,
         SelectionStore selection,
         ApplicationLauncher launcher,
         OpenWithLauncher openWith,
@@ -33,6 +37,8 @@ public sealed class ArgusHub : Hub
     {
         _capture = capture;
         _input = input;
+        _keyReleaser = keyReleaser;
+        _held = held;
         _selection = selection;
         _launcher = launcher;
         _openWith = openWith;
@@ -50,9 +56,14 @@ public sealed class ArgusHub : Hub
         await base.OnConnectedAsync();
     }
 
+    /// <summary>
+    /// Fires whether the tab was closed, the network dropped or the browser was killed - which is
+    /// exactly when nothing sent the key-ups. Anything this viewer left down comes back up here.
+    /// </summary>
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         _log.LogInformation("Viewer {ConnectionId} disconnected", Context.ConnectionId);
+        _held.ReleaseFor(Context.ConnectionId);
         _capture.UnsubscribeAll(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
     }
@@ -145,6 +156,16 @@ public sealed class ArgusHub : Hub
         }
 
         var result = _input.Send(session.Info, keyEvent, mode);
+
+        // Only what actually went through SendInput: a posted WM_KEYDOWN never touched the global
+        // key state, so there would be nothing for the disconnect cleanup to lift.
+        if (result.Delivered && result.Backend == ForegroundInjector.BackendName)
+        {
+            ushort vk = KeyMapper.Map(keyEvent.Code).VirtualKey;
+            if (keyEvent.Type == KeyEventType.Down) _held.Down(Context.ConnectionId, vk);
+            else _held.Up(Context.ConnectionId, vk);
+        }
+
         return new { delivered = result.Delivered, backend = result.Backend, reason = result.Reason };
     }
 
@@ -193,6 +214,24 @@ public sealed class ArgusHub : Hub
     }
 
     /// <summary>
+    /// Lifts every modifier off the host keyboard, plus anything else found physically down.
+    ///
+    /// No window id on purpose. A key-up clears the global key state whatever is in front, so
+    /// there is nothing to aim it at - and the case you most want this in is the one where the
+    /// window that stranded the key is already gone, or nothing is attached at all.
+    /// </summary>
+    public object ReleaseKeys()
+    {
+        var report = _keyReleaser.ReleaseAll();
+
+        // The host is clear now, so this viewer is holding nothing. Without this, its disconnect
+        // would fire a second set of key-ups at whatever window is in front by then.
+        _held.Forget(Context.ConnectionId);
+
+        return new { released = report.Released, reason = report.Reason };
+    }
+
+    /// <summary>
     /// Moves the real cursor to a point on the frame and clicks. Coordinates are 0..1 fractions of
     /// the captured frame - see MouseEventDto for why they are not pixels.
     /// </summary>
@@ -210,6 +249,15 @@ public sealed class ArgusHub : Hub
         }
 
         var result = _input.SendMouse(session.Info, mouseEvent);
+
+        // A Click is a down and an up in the same call, so only a bare Down leaves a button held.
+        if (result.Delivered)
+        {
+            ushort vk = HeldInputTracker.VkFor(mouseEvent.Button);
+            if (mouseEvent.Action == MouseAction.Down) _held.Down(Context.ConnectionId, vk);
+            else if (mouseEvent.Action is MouseAction.Up or MouseAction.Click) _held.Up(Context.ConnectionId, vk);
+        }
+
         return new { delivered = result.Delivered, backend = result.Backend, reason = result.Reason };
     }
 

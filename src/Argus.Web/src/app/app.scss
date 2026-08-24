@@ -71,7 +71,8 @@
   white-space: nowrap;
 }
 
-.lock-button {
+.lock-button,
+.release-button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -80,7 +81,8 @@
   flex: 0 0 auto;
 }
 
-.lock-button svg {
+.lock-button svg,
+.release-button svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -116,7 +118,8 @@ main {
     display: none;
   }
 
-  .lock-label {
+  .lock-label,
+  .release-label {
     display: none;
   }
 }

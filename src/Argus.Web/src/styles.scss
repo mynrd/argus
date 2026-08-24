@@ -158,6 +158,12 @@ input[type='range'] {
   color: #ff9492;
 }
 
+.banner.good {
+  background: rgba(63, 185, 80, 0.12);
+  border-color: rgba(63, 185, 80, 0.4);
+  color: #7ee787;
+}
+
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;

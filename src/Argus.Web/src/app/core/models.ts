@@ -93,6 +93,12 @@ export interface SendKeyResult {
   reason?: string | null;
 }
 
+/** Result of ReleaseKeys. Empty `released` means nothing on the host was down. */
+export interface ReleaseKeysResult {
+  released: string[];
+  reason?: string | null;
+}
+
 /** Result of CloseWindow / KillWindow. */
 export interface CloseResult {
   closed: boolean;

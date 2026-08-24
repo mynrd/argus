@@ -14,6 +14,7 @@ import {
   MouseEventDto,
   OpenWithApp,
   QualityLevel,
+  ReleaseKeysResult,
   SendKeyResult,
   WindowListItem,
   WindowStatus,
@@ -55,6 +56,15 @@ export class ArgusService {
   readonly windows = signal<WindowListItem[]>([]);
   readonly statuses = signal<ReadonlyMap<number, WindowStatusUpdate>>(new Map());
   readonly lastError = signal<string | null>(null);
+
+  /**
+   * Bumped once per completed Release keys pass.
+   *
+   * A counter rather than a boolean because the interesting thing is the event, not a state: a
+   * viewer watches it to drop its own idea of what is held, and pressing the button twice has to
+   * fire twice.
+   */
+  readonly keysReleased = signal(0);
 
   readonly attached = computed(() => [...this.statuses().values()]);
 
@@ -415,6 +425,20 @@ export class ArgusService {
         reason: 'Not connected',
       }
     );
+  }
+
+  /**
+   * Lifts every modifier off the host keyboard, plus anything else found physically down.
+   *
+   * No handle: a key-up clears the global key state whatever window is in front, so this works
+   * from any page and even with nothing attached.
+   */
+  async releaseKeys(): Promise<ReleaseKeysResult> {
+    const result = await this.invoke<ReleaseKeysResult>('ReleaseKeys');
+    if (!result) return { released: [], reason: 'Not connected' };
+
+    this.keysReleased.update((n) => n + 1);
+    return result;
   }
 
   /** Brings the window to the foreground on the host desktop. */

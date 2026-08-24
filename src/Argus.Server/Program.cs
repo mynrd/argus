@@ -36,6 +36,8 @@ builder.Services.AddSingleton<WindowMessageInjector>();
 builder.Services.AddSingleton<ForegroundInjector>();
 builder.Services.AddSingleton<ConsoleInputInjector>();
 builder.Services.AddSingleton<MouseInjector>();
+builder.Services.AddSingleton<KeyReleaser>();
+builder.Services.AddSingleton<HeldInputTracker>();
 builder.Services.AddSingleton<InputRouter>();
 
 builder.Services.AddHostedService<WatchdogService>();

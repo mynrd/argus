@@ -327,6 +327,14 @@ export class ViewerComponent implements OnInit, OnDestroy {
       this.keyboardSink()?.nativeElement.blur();
     });
 
+    // Release keys clears the host side globally, from any page. The pad has no way of knowing
+    // that happened, so without this the row still shows Ctrl locked and the next pad key presses
+    // it straight back down - the button would look like it did nothing.
+    effect(() => {
+      this.argus.keysReleased();
+      this.forgetHeldInput();
+    });
+
     // A quality switch or a resize of the host window changes the frame's pixel size, which
     // changes what "fits". Re-fit only while the user has not zoomed away from it themselves.
     effect(() => {
@@ -353,6 +361,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
     // Capture, and on the document rather than on the sink input - see onKeyDown.
     document.addEventListener('keydown', this.onKeyDown, true);
     document.addEventListener('keyup', this.onKeyUp, true);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('pagehide', this.onPageHide);
     await this.argus.refreshStatuses();
 
     // The pad is remembered per device, so a viewer can open with it already showing and the icon
@@ -362,18 +372,16 @@ export class ViewerComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Leaving the page mid-drag would otherwise strand a held mouse button on the host.
-    this.abortMouseGesture();
-    this.cancelPendingScroll();
-    this.stopScrolling();
-    // Same for a pad key or a locked modifier still down - a stuck Ctrl on the host is worse than
-    // a stuck click: every subsequent keystroke on the machine becomes a shortcut.
-    this.releasePadKey();
-    this.clearModifiers();
+    // Leaving the page mid-drag would otherwise strand a held mouse button on the host, and a pad
+    // key or a locked modifier still down is worse than a stuck click: every subsequent keystroke
+    // on the machine becomes a shortcut.
+    this.releaseEverything();
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     window.removeEventListener('resize', this.onViewportResize);
     document.removeEventListener('keydown', this.onKeyDown, true);
     document.removeEventListener('keyup', this.onKeyUp, true);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('pagehide', this.onPageHide);
     const handle = this.handle();
     if (handle) void this.argus.unsubscribe(handle);
   }
@@ -411,6 +419,35 @@ export class ViewerComponent implements OnInit, OnDestroy {
   };
 
   /** Rotating the tablet changes what fits; only re-fit if the view is still meant to be fitted. */
+  /**
+   * Backgrounding the tab releases everything this viewer is holding.
+   *
+   * ngOnDestroy already covers navigating away, and the server releases what a viewer left down
+   * when its hub connection drops - but switching to another tab or app on the phone does neither.
+   * The locked Ctrl just sits there on the host until you come back.
+   *
+   * visibilitychange rather than window blur, deliberately. Focus App foregrounds the target window
+   * on the host, and when the browser is on that same machine that blurs the browser - so a blur
+   * handler would clear the pad's locked modifiers on every Focus App, which is the one thing they
+   * exist to survive. document.hidden only turns true when the tab genuinely goes away.
+   */
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.releaseEverything();
+  };
+
+  /** Same for bfcache and real unloads, where visibilitychange is not guaranteed to arrive. */
+  private readonly onPageHide = (): void => {
+    this.releaseEverything();
+  };
+
+  private releaseEverything(): void {
+    this.abortMouseGesture();
+    this.cancelPendingScroll();
+    this.stopScrolling();
+    this.releasePadKey();
+    this.clearModifiers();
+  }
+
   private readonly onViewportResize = (): void => {
     if (this.fitted()) requestAnimationFrame(() => this.fitToScreen());
     requestAnimationFrame(() => this.clampPadOffset());
@@ -1176,6 +1213,27 @@ export class ViewerComponent implements OnInit, OnDestroy {
     clearTimeout(this.keyRepeat);
     clearInterval(this.keyRepeat as ReturnType<typeof setInterval>);
     this.keyRepeat = undefined;
+  }
+
+  /**
+   * Drops this viewer's idea of what is held, sending nothing.
+   *
+   * The counterpart to clearModifiers: there the host still has the keys down and needs the
+   * key-ups; here Release keys has already lifted them, and queueing more would be a second set of
+   * key-ups aimed at a keyboard that is already clear.
+   */
+  private forgetHeldInput(): void {
+    this.stopKeyRepeat();
+    this.heldKey = null;
+    this.heldModifiers.clear();
+    this.modifiers.set({ ctrl: 0, alt: 0, shift: 0, meta: 0 });
+
+    // Same for a drag: the host button is already up, so forget the gesture rather than sending
+    // an Up that would land as a stray click wherever the cursor now is.
+    if (this.gesture) {
+      this.clearLongPress(this.gesture);
+      this.gesture = null;
+    }
   }
 
   /** Lifts any locked modifier off the host and blanks the row. */

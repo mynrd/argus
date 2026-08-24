@@ -23,7 +23,13 @@ public sealed class ForegroundInjector : IInputInjector
 
     public ForegroundInjector(ILogger<ForegroundInjector> log) => _log = log;
 
-    public string Name => "sendinput";
+    /// <summary>
+    /// Named, because the hub has to recognise this backend by its result: only SendInput updates
+    /// the global key state, so only keys that went this way are worth tracking as held.
+    /// </summary>
+    public const string BackendName = "sendinput";
+
+    public string Name => BackendName;
 
     public bool CanHandle(WindowInfo target) => true;
 

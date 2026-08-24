@@ -179,6 +179,71 @@ one Enter, and text that already ends in a newline is not given a second one by 
 control characters are dropped. Text goes through the Focus backend whatever the window is, and is
 capped at 10,000 characters per send.
 
+### Release keys
+
+The topbar has a **Release keys** button, next to Lock. It lifts every modifier off the host
+keyboard and reports what it found: *"Released Ctrl, Shift, Win"*, or *"Nothing was stuck"*.
+
+The failure it exists for: a viewer locks Ctrl on the key pad and then the tab closes, the
+connection drops, or the window it was aimed at dies. Nothing sends the matching key-up, so Ctrl
+stays physically down on the machine and every later keystroke over there - typed from Argus or by
+whoever is sitting at it - becomes a shortcut.
+
+It takes no window id and it does not focus anything, which is the whole point of the design.
+`SendInput` with `KEYEVENTF_KEYUP` clears the global async key state whatever window is in front, so
+there is no target to pick - and the case you most want the button in is the one where the window
+that stranded the key is already gone, or nothing is attached at all. It is therefore gated on the
+connection rather than on having a session or a selection, and works from Dashboard, Explorer and
+the viewer alike.
+
+What it releases:
+
+| Set | VKs | Why |
+|-----|-----|-----|
+| Sided modifiers | `LSHIFT`/`RSHIFT`, `LCONTROL`/`RCONTROL`, `LMENU`/`RMENU`, `LWIN`/`RWIN` | The actual latches. Both sides always - a stuck Right Shift is invisible if you only release Left. |
+| Generic modifiers | `SHIFT`, `CONTROL`, `MENU` | What an app calling `GetKeyState(VK_CONTROL)` reads. |
+| Anything else down | sweep `0x08`-`0xFE` via `GetAsyncKeyState & 0x8000` | Covers a stuck letter repeating into whatever has focus. Only keys actually down are touched. |
+| Stuck mouse buttons | left, middle, right | A stranded drag is the same failure mode as a stuck Ctrl. |
+
+CapsLock, NumLock and ScrollLock are deliberately excluded. They are toggles, not latches:
+blind-releasing them does nothing, and blind-tapping them flips a state you may want on.
+
+**The Win-key gotcha.** Injecting a lone `LWIN` key-up when Windows saw the key-down opens the Start
+menu - you would fix the stuck key and get Start in your face. So when a Win key is in the batch, a
+full `VK_F13` press goes in first, while Win is still held, and the shell sees a combo rather than a
+bare tap. F13 is not a Win shortcut and does nothing on its own in essentially any app. **This part
+is reasoned, not measured** - if the Start menu still appears on your machine, the fallback is to
+send Escape after the release.
+
+The viewer watches for a release and blanks its own modifier row without queueing more key-ups.
+Without that the pad would still show Ctrl locked, and the next pad key would press it straight
+back down.
+
+### Nothing stays held after you leave
+
+Release keys is the manual escape hatch. Two things stop it being needed in the first place.
+
+**The server tracks what each viewer is holding.** `HeldInputTracker` records every key and mouse
+button sent down with no matching up, per hub connection, and `OnDisconnectedAsync` releases exactly
+those. That covers closing the tab, the network dropping and the browser being killed - none of
+which send a key-up. Only `SendInput`-delivered input is tracked: a posted `WM_KEYDOWN` never
+touched the global key state, so releasing it globally would aim a key-up at whatever window is in
+front rather than at the app that has the key stuck.
+
+Exactly what the viewer left down, never a full sweep - a disconnect must not lift keys the person
+sitting at the machine is genuinely holding. Buttons go up before modifiers, so a stranded Ctrl-drag
+finishes as the drag it was rather than as a plain drop.
+
+**The viewer releases when its tab goes away.** `visibilitychange` and `pagehide` do what
+`ngOnDestroy` already did for navigation: drop the gesture, the held pad key and any locked
+modifier. Switching to another app on a phone is neither a navigation nor a disconnect, so without
+this the locked Ctrl just sits on the host until you come back.
+
+Deliberately *not* window `blur`. Focus App foregrounds the target window on the host, and when the
+browser is on that same machine that blurs the browser - so a blur handler would clear the pad's
+locked modifiers on every Focus App, which is the one thing locking them exists to survive.
+`document.hidden` only turns true when the tab genuinely goes away.
+
 ---
 
 ## Health loop

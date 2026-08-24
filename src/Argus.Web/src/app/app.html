@@ -29,10 +29,35 @@
         <span class="lock-label">Lock</span>
       </button>
     }
+
+    <!--
+      Gated on the connection, not on the lock: a stuck Ctrl is exactly the thing you want to clear
+      from whichever page you happen to be on, and it needs no window attached to work.
+    -->
+    @if (argus.connected()) {
+      <button
+        type="button"
+        class="release-button ghost"
+        [disabled]="releasing()"
+        (click)="releaseKeys()"
+        title="Lift every modifier off the host keyboard"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <path d="M8 14h8" />
+          <path d="M3.5 20.5 20.5 3.5" />
+        </svg>
+        <span class="release-label">Release keys</span>
+      </button>
+    }
   </header>
 
   @if (argus.lastError(); as error) {
     <div class="banner bad global-error">{{ error }}</div>
+  }
+
+  @if (releaseNote(); as note) {
+    <div class="banner good global-error">{{ note }}</div>
   }
 
   <main>

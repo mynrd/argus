@@ -221,6 +221,21 @@ internal static partial class NativeMethods
     [LibraryImport(User32, EntryPoint = "VkKeyScanW")]
     internal static partial short VkKeyScan(ushort ch);
 
+    /// <summary>
+    /// Physical key state, independent of any window's message queue. The high bit (0x8000) means
+    /// the key is down right now - which is exactly what a stuck modifier looks like.
+    /// </summary>
+    [LibraryImport(User32)]
+    internal static partial short GetAsyncKeyState(int vk);
+
+    /// <summary>
+    /// Key state as the *calling thread's* queue last saw it. Not a substitute for
+    /// <see cref="GetAsyncKeyState"/> here - this process pumps no input - but it costs nothing as
+    /// a second opinion when deciding whether a modifier was really stuck.
+    /// </summary>
+    [LibraryImport(User32)]
+    internal static partial short GetKeyState(int vk);
+
     internal const uint MAPVK_VK_TO_VSC = 0;
     internal const uint MAPVK_VK_TO_VSC_EX = 4;
 
