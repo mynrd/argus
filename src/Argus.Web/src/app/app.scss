@@ -41,6 +41,22 @@
   background: var(--accent);
 }
 
+.brand .host-tag {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -112,6 +128,11 @@ main {
 
   .brand .name {
     display: none;
+  }
+
+  /* The tag stays: on a phone, which machine you are driving is the thing worth the width. */
+  .brand .host-tag {
+    max-width: 10ch;
   }
 
   .agent-label {

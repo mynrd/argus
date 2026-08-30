@@ -13,6 +13,7 @@ const IDLE_TICK_MS = 5000;
 interface SessionResponse {
   required: boolean;
   unlocked: boolean;
+  host: string;
 }
 
 interface UnlockResponse {
@@ -34,6 +35,9 @@ export class SessionService {
   readonly ready = signal(false);
   readonly required = signal(false);
   readonly unlocked = signal(false);
+
+  /** The machine Argus is running on, as Windows names it. Empty until /api/session answers. */
+  readonly host = signal('');
 
   readonly locked = computed(() => this.ready() && this.required() && !this.unlocked());
 
@@ -61,6 +65,7 @@ export class SessionService {
 
       this.required.set(state.required);
       this.unlocked.set(state.unlocked);
+      this.host.set(state.host ?? '');
       if (state.unlocked) this.lastActivity = Date.now();
     } catch {
       // Cannot reach the agent at all. Claiming it is unlocked would be a lie, but claiming it is

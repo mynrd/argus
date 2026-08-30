@@ -45,10 +45,13 @@ public static class SessionEndpoints
     public static void MapSessionEndpoints(this WebApplication app)
     {
         // Lets the app decide on load whether to show the lock screen, without guessing from a 401.
+        // The machine name rides along so the header tag and the tab title name the host the
+        // moment the page loads, before the hub is up and while the lock screen is still on.
         app.MapGet("/api/session", (SessionGuard guard, HttpContext context) => Results.Ok(new
         {
             required = guard.Required,
             unlocked = guard.IsOpen(context.Request.Cookies[SessionGuard.CookieName]),
+            host = Environment.MachineName,
         }));
 
         app.MapPost("/api/unlock", (UnlockRequest body, SessionGuard guard, HttpContext context) =>

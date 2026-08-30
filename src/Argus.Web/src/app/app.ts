@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { Title } from '@angular/platform-browser';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ArgusService } from './core/argus.service';
 import { SessionService } from './core/session.service';
@@ -26,6 +27,8 @@ export class App implements OnInit, OnDestroy {
   protected readonly argus = inject(ArgusService);
   protected readonly session = inject(SessionService);
 
+  private readonly title = inject(Title);
+
   /** In flight, so a double tap does not fire two release passes. */
   protected readonly releasing = signal(false);
 
@@ -43,6 +46,13 @@ export class App implements OnInit, OnDestroy {
     effect(() => {
       if (this.session.unlocked()) void this.argus.start();
       else this.argus.stop();
+    });
+
+    // Which machine this tab is driving, in the place you can read without switching to it. The
+    // host is only known once /api/session answers, so the bare name is what shows until then.
+    effect(() => {
+      const host = this.session.host();
+      this.title.setTitle(host ? `${host} - Argus` : 'Argus');
     });
   }
 

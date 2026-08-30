@@ -3,6 +3,9 @@
     <a class="brand" routerLink="/dashboard">
       <span class="eye" aria-hidden="true"></span>
       <span class="name">Argus</span>
+      @if (session.host(); as host) {
+        <span class="host-tag" [title]="host">{{ host }}</span>
+      }
     </a>
 
     <nav class="tabs">
