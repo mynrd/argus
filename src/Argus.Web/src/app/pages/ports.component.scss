@@ -94,6 +94,28 @@
   color: var(--warn);
 }
 
+/* Same shape as the star so the two buttons read as one pair of choices about the row. */
+.eye {
+  flex: none;
+  width: 30px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--border-strong);
+}
+
+.eye.on {
+  color: var(--accent);
+}
+
+/* Only ever on screen while "show hidden" is on, so it has to look like the odd one out. */
+.port.struck .row {
+  opacity: 0.5;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -232,6 +254,10 @@
   /* The port number and the title are what you scan for; the process name is the first to go. */
   .process {
     display: none;
+  }
+
+  .eye {
+    width: 26px;
   }
 
   .kind {

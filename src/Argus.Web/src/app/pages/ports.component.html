@@ -26,6 +26,12 @@
       </button>
     }
 
+    @if (hiddenCount(); as count) {
+      <button type="button" class="ghost" (click)="showHidden.set(!showHidden())">
+        {{ showHidden() ? 'Hide' : 'Show' }} {{ count }} hidden
+      </button>
+    }
+
     <span class="count muted">
       {{ rest().length }} {{ query().trim() ? 'matching' : 'listening' }}
     </span>
@@ -62,7 +68,12 @@
 <!-- One row, drawn the same in both lists - the only difference between them is which list it
      is in, and a starred row moving from one to the other should look identical. -->
 <ng-template #row let-port>
-  <li class="port" [class.open]="isExpanded(port.port)" [class.offline]="!port.isListening">
+  <li
+    class="port"
+    [class.open]="isExpanded(port.port)"
+    [class.offline]="!port.isListening"
+    [class.struck]="port.isHidden"
+  >
     <div class="rowline">
       <button
         type="button"
@@ -74,6 +85,18 @@
         [title]="port.isFavourite ? 'Remove from favourites' : 'Add to favourites'"
       >
         {{ port.isFavourite ? '★' : '☆' }}
+      </button>
+
+      <button
+        type="button"
+        class="eye"
+        [class.on]="port.isHidden"
+        (click)="toggleHidden(port, $event)"
+        [attr.aria-pressed]="port.isHidden"
+        [attr.aria-label]="(port.isHidden ? 'Show port ' : 'Hide port ') + port.port"
+        [title]="port.isHidden ? 'Bring this port back' : 'Hide this port'"
+      >
+        ⊘
       </button>
 
       <button type="button" class="row" (click)="toggle(port)">

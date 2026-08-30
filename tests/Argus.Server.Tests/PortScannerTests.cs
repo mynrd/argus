@@ -67,13 +67,28 @@ public class PortScannerTests
     private static ListeningPort Listening(int port, string process = "node", bool system = false) =>
         new(port, process, 42, system, [Localhost]);
 
+    private static PortPreferences Pinned(params int[] ports) => new(ports, []);
+
+    private static PortPreferences Struck(params int[] ports) => new([], ports);
+
     [Fact]
     public void Composing_flags_the_favourites_among_the_listening_ports()
     {
-        var composed = PortScanner.Compose([Listening(3000), Listening(5227)], [5227]);
+        var composed = PortScanner.Compose([Listening(3000), Listening(5227)], Pinned(5227));
 
         Assert.Equal([false, true], composed.Select(e => e.IsFavourite));
         Assert.All(composed, e => Assert.True(e.IsListening));
+    }
+
+    [Fact]
+    public void Composing_flags_the_hidden_ones_without_dropping_them()
+    {
+        // The page owns the filtering: a row dropped here could never be brought back by the
+        // "show hidden" toggle.
+        var composed = PortScanner.Compose([Listening(3000), Listening(5227)], Struck(3000));
+
+        Assert.Equal([true, false], composed.Select(e => e.IsHidden));
+        Assert.Equal(2, composed.Count);
     }
 
     [Fact]
@@ -81,7 +96,7 @@ public class PortScannerTests
     {
         // The whole point of pinning 3000 is that it stays on the page while you restart the dev
         // server behind it.
-        var composed = PortScanner.Compose([Listening(5227)], [3000]);
+        var composed = PortScanner.Compose([Listening(5227)], Pinned(3000));
 
         var offline = Assert.Single(composed, e => e.Port == 3000);
         Assert.True(offline.IsFavourite);
@@ -90,9 +105,18 @@ public class PortScannerTests
     }
 
     [Fact]
+    public void A_hidden_port_that_is_not_listening_gets_no_row()
+    {
+        // Nothing to draw and nothing to hide - the opposite of the favourite case above.
+        var composed = PortScanner.Compose([Listening(5227)], Struck(3000));
+
+        Assert.Equal([5227], composed.Select(e => e.Port));
+    }
+
+    [Fact]
     public void A_favourite_that_is_listening_is_not_duplicated()
     {
-        var composed = PortScanner.Compose([Listening(5227)], [5227]);
+        var composed = PortScanner.Compose([Listening(5227)], Pinned(5227));
 
         var entry = Assert.Single(composed);
         Assert.True(entry.IsListening);
@@ -102,7 +126,7 @@ public class PortScannerTests
     [Fact]
     public void Composing_keeps_the_rows_in_port_order()
     {
-        var composed = PortScanner.Compose([Listening(8080), Listening(80)], [3000, 65000]);
+        var composed = PortScanner.Compose([Listening(8080), Listening(80)], Pinned(3000, 65000));
 
         Assert.Equal([80, 3000, 8080, 65000], composed.Select(e => e.Port));
     }
@@ -110,7 +134,8 @@ public class PortScannerTests
     [Fact]
     public void Composing_preserves_what_the_scan_said_about_each_port()
     {
-        var composed = PortScanner.Compose([Listening(445, "System", system: true)], []);
+        var composed = PortScanner.Compose(
+            [Listening(445, "System", system: true)], PortPreferences.Empty);
 
         var entry = Assert.Single(composed);
         Assert.True(entry.IsSystem);

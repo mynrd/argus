@@ -33,7 +33,7 @@ builder.Services.AddSingleton<SelectionStore>();
 builder.Services.AddSingleton<ApplicationLauncher>();
 builder.Services.AddSingleton<OpenWithLauncher>();
 builder.Services.AddSingleton<PortProbe>();
-builder.Services.AddSingleton<FavouritePortStore>();
+builder.Services.AddSingleton<PortPreferenceStore>();
 
 builder.Services.AddSingleton<WindowMessageInjector>();
 builder.Services.AddSingleton<ForegroundInjector>();

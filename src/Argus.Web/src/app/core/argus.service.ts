@@ -431,6 +431,15 @@ export class ArgusService {
   }
 
   /**
+   * Strikes a port off the list, or brings it back. Same deal as the favourite: the host owns the
+   * list, and hiding a port also unpins it, so the whole listing comes back rather than one flag.
+   */
+  async setHiddenPort(port: number, hidden: boolean): Promise<PortEntry[]> {
+    const method = hidden ? 'PUT' : 'DELETE';
+    return (await this.send<PortEntry[]>(method, `/api/ports/${port}/hidden`)) ?? [];
+  }
+
+  /**
    * Asks one port what it is. The host fetches the page, not this browser: the device holding
    * this tab may have no route to 127.0.0.1 on the watched PC at all.
    *

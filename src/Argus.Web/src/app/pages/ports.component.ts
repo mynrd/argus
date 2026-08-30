@@ -47,24 +47,31 @@ export class PortsComponent implements OnInit {
   /** Windows plumbing is hidden by default - it is most of the list and none of the interest. */
   protected readonly showSystem = signal(false);
 
+  /** Ports struck off by hand. Off by default, which is the whole point of striking them off. */
+  protected readonly showHidden = signal(false);
+
   protected readonly query = signal('');
 
   /**
-   * The rows the system filter allows, before the search box has its say.
+   * The rows the two filters allow, before the search box has its say.
    *
    * Kept separate from what is drawn because this is also what gets probed: searching by title
    * only works if the titles were fetched, and they cannot be fetched for rows the search has
-   * already hidden.
+   * already hidden. A struck-off port is not probed until you ask to see it - the point of hiding
+   * it was to stop spending an HTTP request on it every refresh.
    */
   private readonly allowed = computed(() =>
-    this.ports().filter((p) => p.isFavourite || this.showSystem() || !p.isSystem),
+    this.ports().filter(
+      (p) =>
+        p.isFavourite || ((this.showSystem() || !p.isSystem) && (this.showHidden() || !p.isHidden)),
+    ),
   );
 
   /**
-   * What the search box looks through. Typing a query pulls the system ports back in: searching
-   * "445" and being told nothing matches reads as "that port is closed", which is a lie.
+   * What the search box looks through. Typing a query pulls the system and hidden ports back in:
+   * searching "445" and being told nothing matches reads as "that port is closed", which is a lie.
    *
-   * They are still not probed, so a system port is findable by number and process but not by
+   * They are still not probed, so a filtered-out port is findable by number and process but not by
    * title - Windows services are not worth an HTTP request each on the off chance.
    */
   private readonly searchable = computed(() =>
@@ -81,9 +88,13 @@ export class PortsComponent implements OnInit {
     this.searchable().filter((p) => !p.isFavourite && this.matches(p)),
   );
 
+  // Each count is what its own button would reveal, so the two never claim the same row: a system
+  // port that was also struck off is only ever offered by the hidden button.
   protected readonly systemCount = computed(
-    () => this.ports().filter((p) => p.isSystem && !p.isFavourite).length,
+    () => this.ports().filter((p) => p.isSystem && !p.isFavourite && !p.isHidden).length,
   );
+
+  protected readonly hiddenCount = computed(() => this.ports().filter((p) => p.isHidden).length);
 
   constructor() {
     // Every row on screen gets identified as soon as it is on screen. The page title is the label
@@ -132,6 +143,15 @@ export class PortsComponent implements OnInit {
   }
 
   /**
+   * Strikes a port off the list, or brings it back. Hiding a pinned port unpins it on the host, so
+   * again the answer replaces the list rather than being patched in.
+   */
+  protected async toggleHidden(entry: PortEntry, event: Event): Promise<void> {
+    event.stopPropagation();
+    this.ports.set(await this.argus.setHiddenPort(entry.port, !entry.isHidden));
+  }
+
+  /**
    * Whether a row survives the search box. Matches the port number, the process, and the title -
    * "5081" and "work hub" should both find the same row, since which one you remember varies.
    */
@@ -176,7 +196,6 @@ export class PortsComponent implements OnInit {
   protected open(url: string): void {
     window.open(url, '_blank', 'noopener');
   }
-
 
   private async probe(port: number): Promise<void> {
     if (this.probed.has(port)) return;

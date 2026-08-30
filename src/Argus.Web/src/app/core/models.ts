@@ -148,6 +148,8 @@ export interface PortEntry {
   pid: number;
   isSystem: boolean;
   isFavourite: boolean;
+  /** Struck off the list by hand. Still sent, so the "show hidden" toggle has something to show. */
+  isHidden: boolean;
   /** False for a favourite nothing is serving right now - the row stays, the links do not. */
   isListening: boolean;
   /** Only the addresses that actually reach this socket - may be empty. */

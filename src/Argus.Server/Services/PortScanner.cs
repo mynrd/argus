@@ -27,12 +27,17 @@ public sealed record ListeningPort(
 /// False for a favourite nothing is serving at the moment - the row stays so the link you pinned
 /// does not vanish every time you restart the thing behind it.
 /// </param>
+/// <param name="IsHidden">
+/// Struck off the list by hand. Still sent to the browser rather than dropped here: the page has
+/// a "show hidden" toggle, and a row you cannot get back is a trap.
+/// </param>
 public sealed record PortEntry(
     int Port,
     string Process,
     int Pid,
     bool IsSystem,
     bool IsFavourite,
+    bool IsHidden,
     bool IsListening,
     IReadOnlyList<HostAddress> Addresses);
 
@@ -105,25 +110,31 @@ public static class PortScanner
     }
 
     /// <summary>
-    /// The scan with the favourites folded in: every listening port flagged, plus a row for each
-    /// favourite that is not listening. Pure, so the offline-favourite case is testable.
+    /// The scan with the saved choices folded in: every listening port flagged pinned or hidden,
+    /// plus a row for each favourite that is not listening. Pure, so the offline-favourite case
+    /// is testable.
+    ///
+    /// A hidden port that is not listening gets no row. Pinning one is a request to keep watching
+    /// it; hiding one is the opposite, so there is nothing to draw and nothing to hide.
     /// </summary>
     public static IReadOnlyList<PortEntry> Compose(
         IReadOnlyList<ListeningPort> scanned,
-        IReadOnlyCollection<int> favourites)
+        PortPreferences preferences)
     {
-        var pinned = favourites.ToHashSet();
+        var pinned = preferences.Favourites.ToHashSet();
+        var struck = preferences.Hidden.ToHashSet();
 
         var entries = scanned
             .Select(p => new PortEntry(
-                p.Port, p.Process, p.Pid, p.IsSystem, pinned.Contains(p.Port), true, p.Addresses))
+                p.Port, p.Process, p.Pid, p.IsSystem,
+                pinned.Contains(p.Port), struck.Contains(p.Port), true, p.Addresses))
             .ToList();
 
         var listening = scanned.Select(p => p.Port).ToHashSet();
 
         foreach (int port in pinned.Where(p => !listening.Contains(p)))
         {
-            entries.Add(new PortEntry(port, string.Empty, 0, false, true, false, []));
+            entries.Add(new PortEntry(port, string.Empty, 0, false, true, false, false, []));
         }
 
         return entries.OrderBy(e => e.Port).ToList();
