@@ -131,6 +131,38 @@ export interface BrowseListing {
   error?: string | null;
 }
 
+/** One address that reaches a listening port. Mirrors Argus.Server.Services.HostAddress. */
+export interface PortAddress {
+  /** localhost | tailscale | nordvpn | lan. */
+  kind: string;
+  /** What to print - the kind, except on the LAN where the adapter name says more. */
+  label: string;
+  ip: string;
+}
+
+/** A row on the Ports page. Mirrors Argus.Server.Services.PortEntry. */
+export interface PortEntry {
+  port: number;
+  /** Empty when the owning process refused to be opened, or when nothing is listening. */
+  process: string;
+  pid: number;
+  isSystem: boolean;
+  isFavourite: boolean;
+  /** False for a favourite nothing is serving right now - the row stays, the links do not. */
+  isListening: boolean;
+  /** Only the addresses that actually reach this socket - may be empty. */
+  addresses: PortAddress[];
+}
+
+/** What a port answered when asked for its home page. */
+export interface PortIdentity {
+  port: number;
+  responded: boolean;
+  /** Whichever of http/https replied. The links are built from it. */
+  scheme: string;
+  title: string | null;
+}
+
 export interface Frame {
   handle: number;
   sequence: number;

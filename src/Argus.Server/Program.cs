@@ -1,3 +1,4 @@
+using Argus.Server.Api;
 using Argus.Server.Capture;
 using Argus.Server.Hubs;
 using Argus.Server.Input;
@@ -31,6 +32,8 @@ builder.Services.AddSingleton<CaptureManager>();
 builder.Services.AddSingleton<SelectionStore>();
 builder.Services.AddSingleton<ApplicationLauncher>();
 builder.Services.AddSingleton<OpenWithLauncher>();
+builder.Services.AddSingleton<PortProbe>();
+builder.Services.AddSingleton<FavouritePortStore>();
 
 builder.Services.AddSingleton<WindowMessageInjector>();
 builder.Services.AddSingleton<ForegroundInjector>();
@@ -63,6 +66,9 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapSessionEndpoints();
+app.MapWindowEndpoints();
+app.MapExplorerEndpoints();
+app.MapPortEndpoints();
 app.MapHub<ArgusHub>("/hubs/argus");
 app.MapFrameSocket();
 
@@ -73,8 +79,6 @@ app.MapGet("/api/health", (CaptureManager capture) => Results.Ok(new
     attached = capture.Sessions.Count,
     sessions = capture.Sessions.Select(s => s.Snapshot()),
 }));
-
-app.MapGet("/api/windows", () => Results.Ok(WindowEnumerator.Enumerate()));
 
 // Single-frame grab, handy for smoke tests and for debugging a tile that looks wrong.
 app.MapGet("/api/windows/{handle:long}/frame", (long handle, string? quality, ILoggerFactory loggers) =>

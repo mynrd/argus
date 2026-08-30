@@ -12,9 +12,9 @@ using Microsoft.AspNetCore.SignalR.Client;
 namespace Argus.Server.Tests;
 
 /// <summary>
-/// Runs the real server executable and drives it exactly as the browser does: SignalR for control,
-/// a raw WebSocket for frames. This is the test that answers "do frames actually arrive", which no
-/// amount of unit testing of the pieces can.
+/// Runs the real server executable and drives it exactly as the browser does: HTTP for questions
+/// and commands, SignalR for subscriptions and input, a raw WebSocket for frames. This is the test
+/// that answers "do frames actually arrive", which no amount of unit testing of the pieces can.
 /// </summary>
 [Trait("Category", "EndToEnd")]
 public sealed class EndToEndStreamingTests : IAsyncLifetime
@@ -132,7 +132,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
 
         await using var reader = new FrameReader(socket);
 
-        var attached = await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+        var attached = await AttachAsync(target.Handle);
         Assert.NotNull(attached);
 
         // High quality so the capture loop runs fast enough for the test to finish quickly.
@@ -154,7 +154,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         // Sequence numbers must advance, otherwise the same frame is being resent.
         Assert.True(frames[^1].Sequence > frames[0].Sequence);
 
-        await hub.InvokeAsync("Detach", target.Handle);
+        await DetachAsync(target.Handle);
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         using var socket = await ConnectFrameSocketAsync(hub.ConnectionId);
 
         await using var reader = new FrameReader(socket);
-        await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+        await AttachAsync(target.Handle);
 
         await hub.InvokeAsync<bool>("Subscribe", target.Handle, QualityLevel.High);
         var highFrames = await reader.TakeAsync(2, TimeSpan.FromSeconds(15));
@@ -186,7 +186,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         Assert.True(previewFrames[^1].Width < highFrames[^1].Width,
             "Switching to Preview did not shrink the stream");
 
-        await hub.InvokeAsync("Detach", target.Handle);
+        await DetachAsync(target.Handle);
     }
 
     [Fact]
@@ -201,13 +201,13 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
         using var socket = await ConnectFrameSocketAsync(hub.ConnectionId);
 
         await using var reader = new FrameReader(socket);
-        await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+        await AttachAsync(target.Handle);
         await hub.InvokeAsync<bool>("Subscribe", target.Handle, QualityLevel.High);
 
         var before = await reader.TakeAsync(1, TimeSpan.FromSeconds(15));
         Assert.NotEmpty(before);
 
-        await hub.InvokeAsync("Detach", target.Handle);
+        await DetachAsync(target.Handle);
 
         // Drain whatever was already queued, then confirm the stream has gone quiet.
         await reader.DrainAsync(TimeSpan.FromMilliseconds(700));
@@ -267,7 +267,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
             await using var hub = BuildHub();
             await hub.StartAsync();
 
-            var attached = await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+            var attached = await AttachAsync(target.Handle);
             Assert.NotNull(attached);
 
             var scrolled = await hub.InvokeAsync<SendKeyResponse>("SendMouse", new
@@ -295,7 +295,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
 
             Assert.True(empty.Delivered, empty.Reason ?? "no reason given");
 
-            await hub.InvokeAsync("Detach", target.Handle);
+            await DetachAsync(target.Handle);
         }
         finally
         {
@@ -341,7 +341,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
 
             await hub.StartAsync();
 
-            var attached = await hub.InvokeAsync<WindowStatusUpdate?>("Attach", target.Handle);
+            var attached = await AttachAsync(target.Handle);
             Assert.NotNull(attached);
             Assert.NotEqual(WindowStatus.Closed, attached!.Status);
 
@@ -355,7 +355,7 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
             Assert.Equal(WindowStatus.Closed, update.Status);
             Assert.False(string.IsNullOrWhiteSpace(update.Note));
 
-            await hub.InvokeAsync("Detach", target.Handle);
+            await DetachAsync(target.Handle);
         }
         finally
         {
@@ -380,12 +380,9 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Window_list_is_returned_over_the_hub()
+    public async Task Window_list_is_returned_over_the_api()
     {
-        await using var hub = BuildHub();
-        await hub.StartAsync();
-
-        var windows = await hub.InvokeAsync<List<HubWindow>>("ListWindows");
+        var windows = await _http.GetFromJsonAsync<List<HubWindow>>($"{_baseUrl}/api/windows");
 
         Assert.NotNull(windows);
         foreach (var window in windows)
@@ -396,6 +393,25 @@ public sealed class EndToEndStreamingTests : IAsyncLifetime
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /// <summary>
+    /// Attach and detach are plain HTTP, not hub calls. They were moved off the hub because
+    /// SignalR runs one invocation per connection at a time, so anything that is not input or a
+    /// subscription has no business sharing that queue.
+    /// </summary>
+    private async Task<WindowStatusUpdate?> AttachAsync(long handle)
+    {
+        var response = await _http.PostAsync($"{_baseUrl}/api/windows/{handle}/attach", null);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<WindowStatusUpdate>()
+            : null;
+    }
+
+    private async Task DetachAsync(long handle)
+    {
+        var response = await _http.PostAsync($"{_baseUrl}/api/windows/{handle}/detach", null);
+        Assert.True(response.IsSuccessStatusCode, $"Detach returned {response.StatusCode}");
+    }
 
     private static WindowInfo? PickTargetWindow() =>
         WindowEnumerator.Enumerate().FirstOrDefault(w => w.Width > 300 && w.Height > 300);

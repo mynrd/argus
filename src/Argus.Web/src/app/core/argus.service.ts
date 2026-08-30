@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -13,6 +13,8 @@ import {
   KeyEventDto,
   MouseEventDto,
   OpenWithApp,
+  PortEntry,
+  PortIdentity,
   QualityLevel,
   ReleaseKeysResult,
   SendKeyResult,
@@ -20,8 +22,20 @@ import {
   WindowStatus,
   WindowStatusUpdate,
 } from './models';
+import { SessionService } from './session.service';
 
 const FRAME_HEADER_SIZE = 16;
+
+/** What a failed HTTP call reports. Not "not connected" - these do not need the hub to be up. */
+const FAILED = 'The host did not answer';
+
+const EMPTY_LISTING: BrowseListing = {
+  path: '',
+  label: 'This PC',
+  parent: null,
+  entries: [],
+  error: FAILED,
+};
 
 /** Missed heartbeats before the agent is treated as offline. The server beats every 2s. */
 const HEARTBEAT_TIMEOUT_MS = 7000;
@@ -29,16 +43,25 @@ const HEARTBEAT_TIMEOUT_MS = 7000;
 type FrameHandler = (frame: Frame) => void;
 
 /**
- * Owns both connections to the server:
- *   - SignalR for control (window list, attach, subscribe, status, keystrokes)
- *   - a raw WebSocket for binary frames
+ * Everything this app says to the host, over the three transports it uses.
  *
- * They are separate on purpose. Frames never queue behind control messages, so a keystroke is not
- * stuck behind a backlog of JPEGs, and frames avoid the ~33% base64 overhead SignalR's JSON
- * protocol would add to every byte of every tile.
+ *   - a raw WebSocket for binary frames
+ *   - SignalR for what has to be live: stream subscriptions, status pushes, and input
+ *   - plain HTTP under /api for everything else
+ *
+ * The frame socket is separate from SignalR so frames never queue behind control messages, and to
+ * avoid the ~33% base64 overhead SignalR's JSON protocol would add to every byte of every tile.
+ *
+ * The HTTP split matters as much. SignalR runs one invocation per connection at a time, which is
+ * what keeps two keystrokes from overtaking each other - and it means one slow call blocks every
+ * other. Listing ports, reading a directory or saving a favourite have no ordering relationship to
+ * anything, so they go over HTTP where the server runs them in parallel and they cannot stall
+ * typing. Only what genuinely needs the live connection is left on the hub.
  */
 @Injectable({ providedIn: 'root' })
 export class ArgusService {
+  private readonly session = inject(SessionService);
+
   private hub?: HubConnection;
   private socket?: WebSocket;
   private clientId = '';
@@ -272,31 +295,201 @@ export class ArgusService {
     };
   }
 
-  // ----------------------------------------------------------------- control
+  // -------------------------------------------------------------------- http
 
   async refreshWindows(): Promise<void> {
-    const list = await this.invoke<WindowListItem[]>('ListWindows');
+    const list = await this.get<WindowListItem[]>('/api/windows');
     if (list) this.windows.set(list);
   }
 
   async refreshStatuses(): Promise<void> {
-    const statuses = await this.invoke<WindowStatusUpdate[]>('ListStatuses');
+    const statuses = await this.get<WindowStatusUpdate[]>('/api/statuses');
     if (statuses) this.applyStatuses(statuses);
   }
 
   async attach(handle: number): Promise<void> {
-    const status = await this.invoke<WindowStatusUpdate | null>('Attach', handle);
+    const status = await this.send<WindowStatusUpdate>('POST', `/api/windows/${handle}/attach`);
     if (status) this.applyStatus(status);
     await this.refreshWindows();
   }
 
   async detach(handle: number): Promise<void> {
-    await this.invoke('Detach', handle);
+    await this.send('POST', `/api/windows/${handle}/detach`);
     const next = new Map(this.statuses());
     next.delete(handle);
     this.statuses.set(next);
     await this.refreshWindows();
   }
+
+  /** Resizes the host window. Width and height are the visible size, not the outer window rect. */
+  async resizeWindow(
+    handle: number,
+    width: number,
+    height: number,
+  ): Promise<{ resized: boolean; reason?: string | null }> {
+    return (
+      (await this.send<{ resized: boolean; reason?: string | null }>(
+        'POST',
+        `/api/windows/${handle}/resize`,
+        { width, height },
+      )) ?? { resized: false, reason: FAILED }
+    );
+  }
+
+  /** Brings the window to the foreground on the host desktop. */
+  async focusWindow(handle: number): Promise<{ focused: boolean; reason?: string | null }> {
+    return (
+      (await this.send<{ focused: boolean; reason?: string | null }>(
+        'POST',
+        `/api/windows/${handle}/focus`,
+      )) ?? { focused: false, reason: FAILED }
+    );
+  }
+
+  /** Asks the app to close. It may put up a save prompt on the host desktop. */
+  async closeWindow(handle: number): Promise<CloseResult> {
+    return (
+      (await this.send<CloseResult>('POST', `/api/windows/${handle}/close`)) ?? {
+        closed: false,
+        reason: FAILED,
+      }
+    );
+  }
+
+  /** Terminates the app. Unsaved work in it is lost. */
+  async killWindow(handle: number): Promise<CloseResult> {
+    return (
+      (await this.send<CloseResult>('POST', `/api/windows/${handle}/kill`)) ?? {
+        closed: false,
+        reason: FAILED,
+      }
+    );
+  }
+
+  /**
+   * Drops a window from the local list without waiting for the server to be re-enumerated.
+   *
+   * A closed or killed app should leave the UI the moment it is gone, and the window list is
+   * pulled, not pushed - polling for its absence would leave a dead row on screen for a second
+   * or two.
+   */
+  forgetWindow(handle: number): void {
+    this.windows.update((list) => list.filter((w) => w.handle !== handle));
+  }
+
+  /** Runs a command on the host, as the Windows Run dialog would. */
+  async runApplication(command: string): Promise<{ started: boolean; reason?: string | null }> {
+    return (
+      (await this.send<{ started: boolean; reason?: string | null }>('POST', '/api/run', {
+        command,
+      })) ?? { started: false, reason: FAILED }
+    );
+  }
+
+  /** One directory of the host filesystem. Pass null for the roots. */
+  async browse(path: string | null): Promise<BrowseListing> {
+    return (await this.get<BrowseListing>(this.listingPath('/api/browse', path))) ?? EMPTY_LISTING;
+  }
+
+  /** Like browse(), but lists every file rather than only the launchable ones. */
+  async explore(path: string | null): Promise<BrowseListing> {
+    return (await this.get<BrowseListing>(this.listingPath('/api/explore', path))) ?? EMPTY_LISTING;
+  }
+
+  async openWithApps(): Promise<OpenWithApp[]> {
+    return (await this.get<OpenWithApp[]>('/api/open-with/apps')) ?? [];
+  }
+
+  /** Opens a host file or folder. Pass null for the file's default association. */
+  async openWith(
+    path: string,
+    app: string | null,
+  ): Promise<{ started: boolean; reason?: string | null }> {
+    return (
+      (await this.send<{ started: boolean; reason?: string | null }>('POST', '/api/open-with', {
+        path,
+        app,
+      })) ?? { started: false, reason: FAILED }
+    );
+  }
+
+  /** Every TCP port the host is listening on, plus any favourite that is not. */
+  async listPorts(): Promise<PortEntry[]> {
+    return (await this.get<PortEntry[]>('/api/ports')) ?? [];
+  }
+
+  /**
+   * Pins a port to the top of the Ports page, or unpins it. The host keeps the list in a file, so
+   * it is the same list from any device that opens this app.
+   *
+   * Returns the whole list again: pinning a port that is not listening adds a row that no local
+   * edit could produce.
+   */
+  async setFavouritePort(port: number, favourite: boolean): Promise<PortEntry[]> {
+    const method = favourite ? 'PUT' : 'DELETE';
+    return (await this.send<PortEntry[]>(method, `/api/ports/${port}/favourite`)) ?? [];
+  }
+
+  /**
+   * Asks one port what it is. The host fetches the page, not this browser: the device holding
+   * this tab may have no route to 127.0.0.1 on the watched PC at all.
+   *
+   * One request per port so each row fills in as its answer lands, rather than every row waiting
+   * on the slowest thing that will never reply.
+   */
+  async probePort(port: number): Promise<PortIdentity> {
+    return (
+      (await this.get<PortIdentity>(`/api/ports/${port}/identity`)) ?? {
+        port,
+        responded: false,
+        scheme: 'http',
+        title: null,
+      }
+    );
+  }
+
+  /** No path means the root listing, and an empty query string would not say that. */
+  private listingPath(base: string, path: string | null): string {
+    return path ? `${base}?path=${encodeURIComponent(path)}` : base;
+  }
+
+  private get<T>(path: string): Promise<T | undefined> {
+    return this.request<T>(path);
+  }
+
+  private send<T>(method: string, path: string, body?: unknown): Promise<T | undefined> {
+    return this.request<T>(path, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
+  private async request<T>(path: string, init?: RequestInit): Promise<T | undefined> {
+    try {
+      // The session cookie is HttpOnly and same-origin, so nothing here has to carry a token.
+      const response = await fetch(`${this.origin}${path}`, { credentials: 'same-origin', ...init });
+
+      if (response.status === 401) {
+        // The session died under us. Whether that means showing the lock screen is the session
+        // service's call, not ours.
+        void this.session.refresh();
+        return undefined;
+      }
+
+      if (!response.ok) {
+        this.lastError.set(`${path} failed: ${response.status} ${response.statusText}`);
+        return undefined;
+      }
+
+      return response.status === 204 ? undefined : ((await response.json()) as T);
+    } catch (error) {
+      this.lastError.set(`${path} failed: ${String(error)}`);
+      return undefined;
+    }
+  }
+
+  // ----------------------------------------------------------------- signalr
 
   async subscribe(handle: number, quality: QualityLevel): Promise<boolean> {
     return (await this.invoke<boolean>('Subscribe', handle, quality)) ?? false;
@@ -323,108 +516,9 @@ export class ArgusService {
     return result ?? { delivered: false, reason: 'Not connected' };
   }
 
-  /** Resizes the host window. Width and height are the visible size, not the outer window rect. */
-  async resizeWindow(
-    handle: number,
-    width: number,
-    height: number,
-  ): Promise<{ resized: boolean; reason?: string | null }> {
-    return (
-      (await this.invoke<{ resized: boolean; reason?: string | null }>(
-        'ResizeWindow',
-        handle,
-        width,
-        height,
-      )) ?? { resized: false, reason: 'Not connected' }
-    );
-  }
-
   async sendMouse(event: MouseEventDto): Promise<SendKeyResult> {
     const result = await this.invoke<SendKeyResult>('SendMouse', event);
     return result ?? { delivered: false, reason: 'Not connected' };
-  }
-
-  /** Runs a command on the host, as the Windows Run dialog would. */
-  async runApplication(command: string): Promise<{ started: boolean; reason?: string | null }> {
-    return (
-      (await this.invoke<{ started: boolean; reason?: string | null }>(
-        'RunApplication',
-        command,
-      )) ?? { started: false, reason: 'Not connected' }
-    );
-  }
-
-  /** One directory of the host filesystem. Pass null for the roots. */
-  async browse(path: string | null): Promise<BrowseListing> {
-    return (
-      (await this.invoke<BrowseListing>('Browse', path)) ?? {
-        path: '',
-        label: 'This PC',
-        parent: null,
-        entries: [],
-        error: 'Not connected',
-      }
-    );
-  }
-
-  /**
-   * Drops a window from the local list without waiting for the server to be re-enumerated.
-   *
-   * A closed or killed app should leave the UI the moment it is gone, and ListWindows is pulled,
-   * not pushed - polling for its absence would leave a dead row on screen for a second or two.
-   */
-  forgetWindow(handle: number): void {
-    this.windows.update((list) => list.filter((w) => w.handle !== handle));
-  }
-
-  /** Asks the app to close. It may put up a save prompt on the host desktop. */
-  async closeWindow(handle: number): Promise<CloseResult> {
-    return (
-      (await this.invoke<CloseResult>('CloseWindow', handle)) ?? {
-        closed: false,
-        reason: 'Not connected',
-      }
-    );
-  }
-
-  /** Terminates the app. Unsaved work in it is lost. */
-  async killWindow(handle: number): Promise<CloseResult> {
-    return (
-      (await this.invoke<CloseResult>('KillWindow', handle)) ?? {
-        closed: false,
-        reason: 'Not connected',
-      }
-    );
-  }
-
-  /** Like browse(), but lists every file rather than only the launchable ones. */
-  async explore(path: string | null): Promise<BrowseListing> {
-    return (
-      (await this.invoke<BrowseListing>('Explore', path)) ?? {
-        path: '',
-        label: 'This PC',
-        parent: null,
-        entries: [],
-        error: 'Not connected',
-      }
-    );
-  }
-
-  async openWithApps(): Promise<OpenWithApp[]> {
-    return (await this.invoke<OpenWithApp[]>('OpenWithApps')) ?? [];
-  }
-
-  /** Opens a host file or folder. Pass null for the file's default association. */
-  async openWith(
-    path: string,
-    app: string | null,
-  ): Promise<{ started: boolean; reason?: string | null }> {
-    return (
-      (await this.invoke<{ started: boolean; reason?: string | null }>('OpenWith', path, app)) ?? {
-        started: false,
-        reason: 'Not connected',
-      }
-    );
   }
 
   /**
@@ -439,16 +533,6 @@ export class ArgusService {
 
     this.keysReleased.update((n) => n + 1);
     return result;
-  }
-
-  /** Brings the window to the foreground on the host desktop. */
-  async focusWindow(handle: number): Promise<{ focused: boolean; reason?: string | null }> {
-    return (
-      (await this.invoke<{ focused: boolean; reason?: string | null }>('FocusWindow', handle)) ?? {
-        focused: false,
-        reason: 'Not connected',
-      }
-    );
   }
 
   private async invoke<T>(method: string, ...args: unknown[]): Promise<T | undefined> {

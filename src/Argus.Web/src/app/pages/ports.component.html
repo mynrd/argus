@@ -1,0 +1,135 @@
+<section class="page">
+  <header class="head">
+    <h1>Ports</h1>
+    <p class="muted sub">Everything listening on the watched PC. Tap a port for its links.</p>
+  </header>
+
+  <div class="bar">
+    <input
+      class="search"
+      type="search"
+      placeholder="Search port, process or title"
+      aria-label="Search ports"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck="false"
+      [value]="query()"
+      (input)="query.set($any($event.target).value)"
+    />
+
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+
+    @if (systemCount(); as count) {
+      <button type="button" class="ghost" (click)="showSystem.set(!showSystem())">
+        {{ showSystem() ? 'Hide' : 'Show' }} {{ count }} system
+      </button>
+    }
+
+    <span class="count muted">
+      {{ rest().length }} {{ query().trim() ? 'matching' : 'listening' }}
+    </span>
+  </div>
+
+  @if (loading() && !ports().length) {
+    <p class="muted none">Reading the port table…</p>
+  } @else {
+    <!-- The pinned list is kept even when it is empty of listening ports: a favourite whose
+         service is restarting is exactly when you want its row to still be there. -->
+    @if (favourites().length) {
+      <h2 class="group">Favourites</h2>
+      <ul class="list">
+        @for (port of favourites(); track port.port) {
+          <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: port }" />
+        }
+      </ul>
+
+      <h2 class="group">All ports</h2>
+    }
+
+    <ul class="list">
+      @for (port of rest(); track port.port) {
+        <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: port }" />
+      } @empty {
+        <li class="muted none">
+          {{ query().trim() ? 'No port matches that.' : 'Nothing is listening.' }}
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<!-- One row, drawn the same in both lists - the only difference between them is which list it
+     is in, and a starred row moving from one to the other should look identical. -->
+<ng-template #row let-port>
+  <li class="port" [class.open]="isExpanded(port.port)" [class.offline]="!port.isListening">
+    <div class="rowline">
+      <button
+        type="button"
+        class="star"
+        [class.on]="port.isFavourite"
+        (click)="toggleFavourite(port, $event)"
+        [attr.aria-pressed]="port.isFavourite"
+        [attr.aria-label]="(port.isFavourite ? 'Unpin port ' : 'Pin port ') + port.port"
+        [title]="port.isFavourite ? 'Remove from favourites' : 'Add to favourites'"
+      >
+        {{ port.isFavourite ? '★' : '☆' }}
+      </button>
+
+      <button type="button" class="row" (click)="toggle(port)">
+        <span class="glyph">{{ isExpanded(port.port) ? '▾' : '▸' }}</span>
+        <span class="number">{{ port.port }}</span>
+
+        @if (port.isListening) {
+          <span class="process truncate">{{ port.process || 'pid ' + port.pid }}</span>
+        }
+
+        @if (identity(port.port); as found) {
+          @if (found.title) {
+            <span class="title truncate">{{ found.title }}</span>
+          }
+        } @else if (isProbing(port.port) && isExpanded(port.port)) {
+          <span class="title muted">checking…</span>
+        }
+
+        <span class="reach muted">
+          @if (!port.isListening) {
+            not listening
+          } @else if (port.addresses.length; as links) {
+            {{ links }} {{ links === 1 ? 'link' : 'links' }}
+          } @else {
+            unreachable
+          }
+        </span>
+      </button>
+    </div>
+
+    @if (isExpanded(port.port)) {
+      <ul class="links">
+        @for (address of port.addresses; track address.ip) {
+          <li>
+            <button type="button" class="link" (click)="open(url(port, address))">
+              <span class="kind" [attr.data-kind]="address.kind">{{ address.label }}</span>
+              <span class="ip truncate">{{ address.ip }}:{{ port.port }}</span>
+              <span class="go" aria-hidden="true">↗</span>
+            </button>
+          </li>
+        } @empty {
+          @if (port.isListening) {
+            <!-- A socket bound to an address this machine no longer has, or to an IPv6-only one.
+                 Offering a link that cannot resolve would be worse than saying so. -->
+            <li class="muted note">Nothing reaches this port from here.</li>
+          } @else {
+            <li class="muted note">Pinned, but nothing is serving this port right now.</li>
+          }
+        }
+
+        @if (identity(port.port); as found) {
+          @if (!found.responded && port.addresses.length) {
+            <li class="muted note">Not a web server - the link probably will not open.</li>
+          }
+        }
+      </ul>
+    }
+  </li>
+</ng-template>

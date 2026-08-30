@@ -13,6 +13,7 @@ internal static partial class NativeMethods
     private const string Kernel32 = "kernel32.dll";
     private const string Gdi32 = "gdi32.dll";
     private const string Dwmapi = "dwmapi.dll";
+    private const string IpHlpApi = "iphlpapi.dll";
 
     // ---------------------------------------------------------------- windows
 
@@ -325,6 +326,55 @@ internal static partial class NativeMethods
     internal const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
     internal const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
     internal const uint MOUSEEVENTF_WHEEL = 0x0800;
+
+    // ------------------------------------------------------------------ tcp
+
+    /// <summary>
+    /// Listening TCP sockets plus the pid that owns each one. Needs no elevation for
+    /// TCP_TABLE_OWNER_PID_LISTENER; the connection tables would.
+    /// </summary>
+    [LibraryImport(IpHlpApi)]
+    internal static partial uint GetExtendedTcpTable(
+        nint table,
+        ref int size,
+        [MarshalAs(UnmanagedType.Bool)] bool sorted,
+        int addressFamily,
+        int tableClass,
+        uint reserved);
+
+    internal const int AF_INET = 2;
+    internal const int AF_INET6 = 23;
+    internal const int TCP_TABLE_OWNER_PID_LISTENER = 3;
+    internal const uint ERROR_INSUFFICIENT_BUFFER = 122;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MIB_TCPROW_OWNER_PID
+    {
+        public uint State;
+        public uint LocalAddr;
+        /// <summary>Network byte order in the low two bytes; the high two are undefined.</summary>
+        public uint LocalPort;
+        public uint RemoteAddr;
+        public uint RemotePort;
+        public uint OwningPid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct MIB_TCP6ROW_OWNER_PID
+    {
+        public fixed byte LocalAddr[16];
+        public uint LocalScopeId;
+        public uint LocalPort;
+        public fixed byte RemoteAddr[16];
+        public uint RemoteScopeId;
+        public uint RemotePort;
+        public uint State;
+        public uint OwningPid;
+    }
+
+    /// <summary>Undoes the network byte order the TCP table stores ports in.</summary>
+    internal static int HostPort(uint tablePort) =>
+        (int)(((tablePort & 0xFF) << 8) | ((tablePort >> 8) & 0xFF));
 
     internal static unsafe string GetWindowTitle(nint hWnd)
     {

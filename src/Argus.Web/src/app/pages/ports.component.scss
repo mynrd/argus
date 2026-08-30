@@ -1,0 +1,240 @@
+.page {
+  padding: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.head .sub {
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0.75rem;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.search {
+  flex: 0 1 15rem;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.bar button {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-color: transparent;
+  white-space: nowrap;
+}
+
+.count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.list,
+.links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.group {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0.7rem 0 0.3rem;
+}
+
+.list + .group {
+  margin-top: 1rem;
+}
+
+.rowline {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Wide enough to hit on a phone without stealing room from the port number. */
+.star {
+  flex: none;
+  width: 34px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.star.on {
+  color: var(--warn);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  padding: 0.4rem 0.5rem;
+  min-height: 38px;
+  font-size: 0.85rem;
+}
+
+.port.open .rowline {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+/* A pinned port with nothing behind it is still a row you can read, just not one you can open. */
+.port.offline .number,
+.port.offline .glyph {
+  color: var(--text-muted);
+}
+
+.glyph {
+  flex: none;
+  width: 0.8rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+}
+
+/* Tabular figures so the column of port numbers lines up down the page. */
+.number {
+  flex: none;
+  width: 3.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.process {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* The page title is the useful label when there is one, so it gets the leftover width. */
+.title {
+  flex: 1 1 6rem;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+
+.reach {
+  white-space: nowrap;
+  flex: none;
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.1rem 0 0.4rem 1.3rem;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  padding: 0.3rem 0.5rem;
+  min-height: 34px;
+  font-size: 0.82rem;
+}
+
+.kind {
+  flex: none;
+  width: 5.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kind[data-kind='tailscale'],
+.kind[data-kind='nordvpn'] {
+  color: var(--accent);
+}
+
+.ip {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.go {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.note {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.none {
+  font-size: 0.85rem;
+  padding: 0.75rem 0.5rem;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 0.6rem;
+  }
+
+  /* The search box takes the row it needs; the buttons wrap under it. */
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .search {
+    flex: 1 0 100%;
+  }
+
+  /* The port number and the title are what you scan for; the process name is the first to go. */
+  .process {
+    display: none;
+  }
+
+  .kind {
+    width: 4.5rem;
+  }
+}
