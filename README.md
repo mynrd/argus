@@ -16,9 +16,10 @@ Built to be reached from a phone or tablet over Tailscale.
 Then open the URL it prints. That is it - one command, one process.
 
 ```powershell
-.\run.ps1 -Dev          # Angular dev server + hot reload on http://localhost:4200
-.\run.ps1 -Port 8080    # different port
-.\run.ps1 -SkipBuild    # run what is already compiled
+.\run.ps1 -Dev                       # Angular dev server + hot reload on http://localhost:4200
+.\run.ps1 -Port 8080                 # different port
+.\run.ps1 -SkipBuild                 # run what is already compiled
+.\run.ps1 -Password "some-password"  # require a password to view or type (see Access and security)
 ```
 
 Requires the .NET 10 SDK and Node.js. First run installs npm packages automatically.
@@ -261,9 +262,59 @@ and the target app being closed and reopened. Stored in `%LOCALAPPDATA%\Argus\se
 
 ---
 
+## Ports and Explorer
+
+Two pages besides the window tiles, both aimed at running a machine from a phone.
+
+**Ports** lists the host's listening TCP ports with the owning process, and can probe a port to
+find out what it is - an HTTP request that reports the scheme and page title. Pin a port to keep it
+at the top; a pinned port keeps its row even while nothing is listening, so the link stays put
+while you restart the thing behind it. Hide a port to get it off the list, which also stops the
+probe request it cost on every refresh. Both choices are saved on the host in
+`%LOCALAPPDATA%\Argus\ports.json`, so they follow the machine, not the browser.
+
+**Explorer** browses the host's filesystem and opens a file or folder over there, in its default
+app or one picked from a list. The listing has to come from the machine being controlled - a file
+picker in the browser would list the phone's files and hand back no usable path.
+
+---
+
 ## Access and security
 
-Argus injects keystrokes into your desktop and **has no authentication**.
+Argus injects keystrokes into your desktop. Set a password before running it on any network you do
+not fully control.
+
+### The password lock
+
+The lock is enforced on the server, not in the page: `/api`, `/hubs` and `/ws` - everything that
+can see or touch the host - answer 401 without a live session. Only the static files and the lock's
+own endpoints are open, because the Angular shell has to load to show the lock screen.
+
+The password comes from either of two places:
+
+```powershell
+.\run.ps1 -Password "some-password"    # reaches the server as the ARGUS_PASSWORD env var
+```
+
+or `Argus:Password` in `src/Argus.Server/appsettings.json`, which wins whenever it has a value.
+Leave the config entry empty in git and pass `-Password` at launch - the file is tracked, and
+anything written there stays in the history. With both empty there is **no lock at all**. That is
+deliberate: a blank must behave as "no password", not as a password nobody can guess, or a typo in
+appsettings.json would lock the machine's owner out of their own agent.
+
+How the lock behaves:
+
+- Unlocking sets an HttpOnly session cookie. Sessions live in server memory only, so restarting
+  Argus locks every viewer out again.
+- A session expires after 12 idle hours; use slides the expiry forward.
+- 5 wrong guesses from one address start a 30-second cooldown before it may try again.
+- The Lock button in the top bar ends the session immediately.
+- Password comparison is fixed-time, so response timing does not leak how much of a guess was right.
+
+Argus serves plain HTTP, so on the LAN the password crosses the wire readable. `tailscale serve` in
+front of Argus gets you HTTPS on the tailnet.
+
+### What it binds
 
 It binds three kinds of address, all detected automatically:
 
@@ -287,7 +338,16 @@ joins later, such as a hotel or cafe hotspot. Override only if you mean it:
 wifi adapter is using. Check with `Get-NetConnectionProfile`; a home network left on `Public` will
 drop the connection even though Argus is listening on the address.
 
-`tailscale serve` in front of Argus gets you HTTPS on the tailnet if you want it.
+### Keeping it running
+
+`.temp-run-monitor-github.ps1` is a local supervisor for a machine that should track this repo: it
+starts `run.ps1` as a child, polls `origin/main` every 30 seconds with `git ls-remote`, and on a
+new commit stops the server, pulls fast-forward only, and starts it again. It never runs
+`git reset --hard`; a pull that fails leaves the server running on the old commit.
+
+```powershell
+.\.temp-run-monitor-github.ps1 -Password "some-password"
+```
 
 ---
 
@@ -316,13 +376,21 @@ dotnet test --filter "Category!=EndToEnd"
 
 ```
 src/Argus.Server/          ASP.NET Core host - capture, input, hub, frame socket, serves the UI
+  Api/                     HTTP endpoints: windows, ports, explorer
   Capture/                 capture sources, sessions, JPEG encoding, quality presets
   Input/                   key mapping and the three injection backends
+  Security/                the password lock: session guard, gate middleware, endpoints
   Streaming/               frame wire format, client sockets, registry
   Windows/                 window enumeration and filtering
-  Services/                watchdog, selection persistence, network binding
+  Services/                watchdog, selection persistence, network binding, port scanner
 src/Argus.ConsoleInject/   out-of-process WriteConsoleInput helper
 src/Argus.Web/             Angular 22 front end (builds into Argus.Server/wwwroot)
 src/Argus.Android.App/     Kotlin + Compose phone client - see its README to build the APK
 tests/Argus.Server.Tests/  unit + end-to-end tests
 ```
+
+---
+
+## License
+
+MIT - see [LICENSE](LICENSE).

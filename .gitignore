@@ -16,6 +16,7 @@ src/Argus.Server/wwwroot/
 # Local runtime state
 *.log
 .work/
+.claude/
 
 .temp-*
 # Tracked despite the .temp-* rule above - checked in on purpose
