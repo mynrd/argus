@@ -82,10 +82,34 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 }
 Write-Info "node $(node --version)"
 
-if (-not (Test-Path (Join-Path $webDir 'node_modules'))) {
-    Write-Step 'Installing web dependencies (first run)'
+# node_modules existing is not the same as node_modules being current: a commit that adds a
+# dependency leaves the old tree in place, and the build then fails on a module that is right
+# there in package.json. Compare the manifests against a stamp written after each successful
+# install, so a new dependency pulls itself in without anyone remembering to run npm install.
+$nodeModules = Join-Path $webDir 'node_modules'
+$installStamp = Join-Path $nodeModules '.argus-install-stamp'
+
+$needsInstall = -not (Test-Path $installStamp)
+if (-not $needsInstall) {
+    $stampedAt = (Get-Item $installStamp).LastWriteTimeUtc
+    foreach ($manifest in 'package.json', 'package-lock.json') {
+        $manifestPath = Join-Path $webDir $manifest
+        if ((Test-Path $manifestPath) -and (Get-Item $manifestPath).LastWriteTimeUtc -gt $stampedAt) {
+            $needsInstall = $true
+        }
+    }
+}
+
+if ($needsInstall) {
+    Write-Step 'Installing web dependencies'
     Push-Location $webDir
-    try { npm install } finally { Pop-Location }
+    try {
+        npm install
+        if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
+    }
+    finally { Pop-Location }
+    New-Item -ItemType File -Path $installStamp -Force | Out-Null
+    (Get-Item $installStamp).LastWriteTimeUtc = [DateTime]::UtcNow
 }
 
 # -------------------------------------------------------------------- build
