@@ -165,6 +165,41 @@ export interface PortIdentity {
   title: string | null;
 }
 
+/** One terminal running on the host. Mirrors Argus.Server.Services.TerminalInfo. */
+export interface TerminalEntry {
+  terminalId: string;
+  /** Null only if the shell never got as far as a process id. */
+  pid: number | null;
+  /** False once the shell has exited - its tab greys out but keeps its scrollback until closed. */
+  running: boolean;
+  command: string;
+  cwd: string;
+  cols: number;
+  rows: number;
+  /** Unix milliseconds. */
+  startedAt: number;
+  exitCode: number | null;
+  /** The tab label, null until renamed. */
+  name: string | null;
+}
+
+/**
+ * A marked shell the OS still shows that the terminal host has lost track of - what is left when
+ * the host itself was killed outright. Mirrors Argus.Server.Services.StrayTerminal.
+ */
+export interface StrayTerminal {
+  pid: number;
+  /** Null when the marker could not be read back off the command line. */
+  terminalId: string | null;
+  startedAt: number | null;
+}
+
+/** What GET /api/terminals answers: the host's own terminals, and the ones only Windows knows. */
+export interface TerminalListing {
+  terminals: TerminalEntry[];
+  strays: StrayTerminal[];
+}
+
 export interface Frame {
   handle: number;
   sequence: number;

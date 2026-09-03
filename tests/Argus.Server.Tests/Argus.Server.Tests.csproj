@@ -20,6 +20,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Argus.Server\Argus.Server.csproj" />
+    <!-- Referenced properly, unlike the way Argus.Server references it: the daemon's registry and
+         its pipe protocol are the part worth testing, and both are internal to that assembly. -->
+    <ProjectReference Include="..\..\src\Argus.TerminalHost\Argus.TerminalHost.csproj" />
   </ItemGroup>
 
   <ItemGroup>

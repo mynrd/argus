@@ -8,6 +8,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
+    path: 'terminals',
+    title: 'Argus - Terminals',
+    loadComponent: () => import('./pages/terminals.component').then((m) => m.TerminalsComponent),
+  },
+  {
     path: 'ports',
     title: 'Argus - Ports',
     loadComponent: () => import('./pages/ports.component').then((m) => m.PortsComponent),

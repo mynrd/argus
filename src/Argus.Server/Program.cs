@@ -34,6 +34,8 @@ builder.Services.AddSingleton<ApplicationLauncher>();
 builder.Services.AddSingleton<OpenWithLauncher>();
 builder.Services.AddSingleton<PortProbe>();
 builder.Services.AddSingleton<PortPreferenceStore>();
+builder.Services.AddSingleton<TerminalHostClient>();
+builder.Services.AddSingleton<TerminalProcessScanner>();
 
 builder.Services.AddSingleton<WindowMessageInjector>();
 builder.Services.AddSingleton<ForegroundInjector>();
@@ -69,8 +71,10 @@ app.MapSessionEndpoints();
 app.MapWindowEndpoints();
 app.MapExplorerEndpoints();
 app.MapPortEndpoints();
+app.MapTerminalEndpoints();
 app.MapHub<ArgusHub>("/hubs/argus");
 app.MapFrameSocket();
+app.MapTerminalSocket();
 
 app.MapGet("/api/health", (CaptureManager capture) => Results.Ok(new
 {

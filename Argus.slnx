@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Argus.ConsoleInject/Argus.ConsoleInject.csproj" />
     <Project Path="src/Argus.Server/Argus.Server.csproj" />
+    <Project Path="src/Argus.TerminalHost/Argus.TerminalHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Argus.Server.Tests/Argus.Server.Tests.csproj" />

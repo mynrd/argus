@@ -1,0 +1,115 @@
+<section class="page" [class.max]="maximised()">
+  <header class="head">
+    <div class="titles">
+      <h1>Terminals</h1>
+      <p class="muted sub">
+        Real shells on the watched PC. They keep running when you close this tab or restart the
+        agent - only killing one, its own exit, or a reboot ends it.
+      </p>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+      <button type="button" class="ghost" (click)="restart()" [disabled]="opening()">Restart</button>
+      <button
+        type="button"
+        class="ghost"
+        (click)="toggleMaximised()"
+        [attr.aria-pressed]="maximised()"
+        [title]="maximised() ? 'Restore' : 'Fill the page'"
+      >
+        {{ maximised() ? 'Restore' : 'Maximise' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="strip" role="tablist">
+    @for (terminal of terminals(); track terminal.terminalId) {
+      @if (renaming() === terminal.terminalId) {
+        <!-- The rename box replaces the label in place, so the strip does not reflow mid-edit. -->
+        <input
+          class="tab rename"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Rename terminal"
+          [value]="terminal.name ?? ''"
+          [attr.placeholder]="label(terminal)"
+          (keydown.enter)="commitRename(terminal, $any($event.target).value)"
+          (keydown.escape)="cancelRename()"
+          (blur)="commitRename(terminal, $any($event.target).value)"
+          #renameBox
+        />
+      } @else {
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          [class.on]="terminal.terminalId === activeId()"
+          [class.dead]="!terminal.running"
+          [attr.aria-selected]="terminal.terminalId === activeId()"
+          [title]="
+            terminal.cwd +
+            '\npid ' +
+            (terminal.pid ?? '-') +
+            ' · started ' +
+            started(terminal.startedAt) +
+            '\n' +
+            terminal.command +
+            '\n\nDouble-click to rename'
+          "
+          (click)="select(terminal.terminalId)"
+          (dblclick)="startRename(terminal, $event)"
+        >
+          <span class="dot" [class.live]="terminal.running"></span>
+          <span class="label truncate">{{ label(terminal) }}</span>
+          <span
+            class="x"
+            role="button"
+            aria-label="Close this terminal"
+            title="Kill this shell and close the tab"
+            (click)="close(terminal, $event)"
+            >&times;</span
+          >
+        </button>
+      }
+    }
+
+    <button type="button" class="tab new" (click)="open()" [disabled]="opening()" title="Open another terminal">
+      +
+    </button>
+  </div>
+
+  <!-- The xterm containers are moved into here by hand rather than rendered: rebuilding one would
+       lose its scrollback and the focus you were typing into. -->
+  <div class="host" #host></div>
+
+  <!-- Only ever what needs saying: reconnecting, or why a terminal stopped. The folder, pid and
+       age are already on the tab's tooltip and add a line of chrome under every terminal. -->
+  @if (status(); as line) {
+    <p class="status" [class.bad]="line.isError">{{ line.text }}</p>
+  } @else if (!loading() && !active()) {
+    <p class="status muted">No terminal open. Use + to start one.</p>
+  }
+
+  <!-- Only ever on screen when something went wrong: a host that was killed outright leaves its
+       shells running with nothing pointing at them. -->
+  @if (strays().length) {
+    <section class="strays">
+      <h2 class="group">Left running</h2>
+      <p class="muted note">
+        Shells Windows still shows that the terminal host has lost track of. There is no pty left to
+        attach to, so these can only be killed.
+      </p>
+      <ul class="list">
+        @for (stray of strays(); track stray.pid) {
+          <li class="stray">
+            <span class="pid">pid {{ stray.pid }}</span>
+            <span class="when muted">{{ started(stray.startedAt) || 'unknown start' }}</span>
+            <button type="button" class="ghost" (click)="killStray(stray)">Kill</button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</section>

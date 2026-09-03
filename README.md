@@ -1,7 +1,8 @@
 # Argus
 
 Watch your Windows desktop apps from a browser. Pick which apps to monitor, see them as live
-preview tiles, open one full-screen, and type into it remotely.
+preview tiles, open one full-screen, and type into it remotely. Open real terminals on the machine
+too - they keep running when the app does not.
 
 Built to be reached from a phone or tablet over Tailscale.
 
@@ -262,6 +263,48 @@ and the target app being closed and reopened. Stored in `%LOCALAPPDATA%\Argus\se
 
 ---
 
+## Terminals
+
+Real shells on the watched PC, in the browser - `pwsh` under a Windows pseudo console (ConPTY), so
+interactive programs behave exactly as they do in a window. Several at once, as tabs, each one
+renameable by double-clicking its tab.
+
+**They outlive the app.** The pseudo consoles are not owned by `Argus.Server` - they live in
+`Argus.TerminalHost.exe`, a separate process the server starts detached on first use. Restart the
+server, rebuild it, or kill it outright and every terminal keeps running; coming back reattaches
+and replays the last 256 KB of each one, so the screen comes back as it was mid-build. A terminal
+ends when you kill it, when its shell exits, when the host is asked to shut down, or when the
+machine restarts. Nothing else.
+
+Killing one takes the whole tree with it - each terminal's shell is in a kill-on-close job object,
+so an `npm run dev` started inside it goes too rather than being left behind.
+
+If the host itself is killed outright, any shell that outlives it shows up under **Left running**:
+Windows still reports the `ARGUS_TERMINAL` marker on its command line, so the page can offer to
+kill it by pid even though there is no pty left to attach to.
+
+```
+   Browser                Argus.Server              Argus.TerminalHost.exe
+  ---------              --------------            ------------------------
+   xterm.js ─ WebSocket ► TerminalSocket ─ named ─►  TerminalRegistry
+            ◄ /ws/       ◄  Endpoint      ◄ pipe  ◄  ConPTY ─► pwsh.exe
+              terminal/                   + token
+              {id}
+```
+
+The named pipe carries newline-delimited JSON and is guarded by a 256-bit token minted per host
+run and written only to `%LOCALAPPDATA%\Argus\terminal-host.json`, under your own profile. That is
+the same trust boundary the rest of the app already sits behind - and note what it means with no
+password set: a terminal is the most direct thing in Argus, and `Argus:Password` is what stands in
+front of it.
+
+Input and output share one WebSocket per terminal, and one named-pipe connection under it. That is
+deliberate: two connections could deliver `ls` as `sl`, and in a shell that matters.
+
+`ARGUS_TERMINAL_SHELL` picks a different shell if you would rather have `cmd` or a Git bash.
+
+---
+
 ## Ports and Explorer
 
 Two pages besides the window tiles, both aimed at running a machine from a phone.
@@ -354,12 +397,14 @@ new commit stops the server, pulls fast-forward only, and starts it again. It ne
 ## Tests
 
 ```powershell
-dotnet test                        # 133 tests
+dotnet test                        # 275 tests
 cd src\Argus.Web && npx ng test    # 4 tests
 ```
 
 The .NET suite covers key mapping, text injection, quality presets, window filtering and re-attach
-matching, the frame wire format, Tailscale address detection, JPEG encoding, and client-registry identity. It
+matching, the frame wire format, Tailscale address detection, JPEG encoding, client-registry
+identity, and the terminal registry and its pipe protocol (driven over a real named pipe against a
+fake pty, so no shell is spawned). It
 also includes end-to-end tests that launch the real server and drive it exactly as the browser does
 - SignalR plus a raw WebSocket - asserting that frames actually arrive, that changing quality
 changes the frame size, and that detaching stops the stream.
@@ -376,14 +421,16 @@ dotnet test --filter "Category!=EndToEnd"
 
 ```
 src/Argus.Server/          ASP.NET Core host - capture, input, hub, frame socket, serves the UI
-  Api/                     HTTP endpoints: windows, ports, explorer
+  Api/                     HTTP endpoints: windows, ports, explorer, terminals
   Capture/                 capture sources, sessions, JPEG encoding, quality presets
   Input/                   key mapping and the three injection backends
   Security/                the password lock: session guard, gate middleware, endpoints
-  Streaming/               frame wire format, client sockets, registry
+  Streaming/               frame wire format, client sockets, registry, terminal sockets
   Windows/                 window enumeration and filtering
-  Services/                watchdog, selection persistence, network binding, port scanner
+  Services/                watchdog, selection persistence, network binding, port scanner,
+                           terminal host client and stray scanner
 src/Argus.ConsoleInject/   out-of-process WriteConsoleInput helper
+src/Argus.TerminalHost/    the daemon that owns every pseudo console, so terminals outlive the server
 src/Argus.Web/             Angular 22 front end (builds into Argus.Server/wwwroot)
 src/Argus.Android.App/     Kotlin + Compose phone client - see its README to build the APK
 tests/Argus.Server.Tests/  unit + end-to-end tests

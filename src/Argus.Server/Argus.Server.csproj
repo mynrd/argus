@@ -32,6 +32,39 @@
                       Private="false" />
   </ItemGroup>
 
+  <!-- The terminal host must be its own executable for the opposite reason to ConsoleInject: it
+       has to OUTLIVE this process. It owns every pseudo console, so a server restart, rebuild or
+       crash must not take an open terminal with it. Same ReferenceOutputAssembly=false - what is
+       needed is the .exe on disk, not an assembly reference. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Argus.TerminalHost\Argus.TerminalHost.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyTerminalHost" AfterTargets="Build">
+    <ItemGroup>
+      <TerminalHostOutput Include="$(MSBuildThisFileDirectory)..\Argus.TerminalHost\bin\$(Configuration)\net10.0-windows\**\*.*" />
+    </ItemGroup>
+    <!-- A daemon that is already running holds its own .exe open, and it is meant to: it survives
+         this build precisely so the terminals it owns do. So the copy is allowed to fail rather
+         than failing the build, and Retries=0 keeps it from spending ten seconds discovering that.
+         The running daemon keeps serving the previous build until it is stopped or a protocol
+         change makes the server retire it - which is what the version handshake is for. -->
+    <Copy SourceFiles="@(TerminalHostOutput)"
+          DestinationFolder="$(OutDir)TerminalHost\%(RecursiveDir)"
+          SkipUnchangedFiles="true"
+          Retries="0"
+          ContinueOnError="true"
+          Condition="'@(TerminalHostOutput)' != ''">
+      <Output TaskParameter="CopiedFiles" ItemName="TerminalHostCopied" />
+    </Copy>
+
+    <Message Importance="high"
+             Condition="@(TerminalHostCopied->Count()) &lt; @(TerminalHostOutput->Count())"
+             Text="The terminal host is already running, so this build did not replace it. Open terminals keep running; stop Argus.TerminalHost.exe to pick up the new build." />
+  </Target>
+
   <Target Name="CopyConsoleInjectHelper" AfterTargets="Build">
     <ItemGroup>
       <ConsoleInjectOutput Include="$(MSBuildThisFileDirectory)..\Argus.ConsoleInject\bin\$(Configuration)\net10.0-windows\**\*.*" />

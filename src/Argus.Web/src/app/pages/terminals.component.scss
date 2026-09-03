@@ -1,0 +1,276 @@
+/* Angular inserts this component as a plain element beside the router outlet, so without a
+   display of its own it sizes to its content and the height chain from <main> stops here - which
+   is why the terminal has to be told to stretch at this level and not just inside .page. */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.page {
+  padding: 1rem;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* The terminal takes whatever the header and the strip do not, so the page never scrolls to
+     reach the shell. */
+  min-height: 0;
+}
+
+/* Maximised drops everything the terminal is not, and covers the app chrome. */
+.page.max {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg);
+}
+
+.page.max .head .sub,
+.page.max .strays {
+  display: none;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.titles {
+  min-width: 0;
+}
+
+.head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.head .sub {
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex: none;
+}
+
+.actions button {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-color: transparent;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- tab strip */
+
+.strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.2rem;
+  overflow-x: auto;
+  /* The strip scrolls sideways rather than wrapping: a second row of tabs would move the terminal
+     down every time one is opened. */
+  scrollbar-width: thin;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+  max-width: 14rem;
+  min-height: 34px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border-color: transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tab.on {
+  background: var(--surface);
+  border-bottom-color: var(--accent);
+}
+
+/* An exited shell keeps its tab - the scrollback is still worth reading - but it should not look
+   like somewhere you can type. */
+.tab.dead .label {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.tab .label {
+  min-width: 0;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--idle);
+}
+
+.dot.live {
+  background: var(--ok);
+}
+
+.x {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.x:hover {
+  background: var(--border);
+  color: var(--bad);
+}
+
+.tab.new {
+  padding: 0.2rem 0.7rem;
+  color: var(--text-muted);
+}
+
+.rename {
+  flex: none;
+  width: 10rem;
+  min-height: 34px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+/* ------------------------------------------------------------------ terminal */
+
+.host {
+  flex: 1;
+  min-height: 14rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* The container each xterm is opened into. It is appended by the component, so this has to be
+   ::ng-deep - Angular's style scoping never sees an element that was not in a template. */
+:host ::ng-deep .screen {
+  width: 100%;
+  height: 100%;
+}
+
+:host ::ng-deep .xterm-viewport {
+  /* xterm draws its own scrollbar track, which is white by default and reads as a bug here. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.status {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status.bad {
+  color: var(--bad);
+}
+
+/* -------------------------------------------------------------------- strays */
+
+.strays {
+  margin-top: 0.9rem;
+  flex: none;
+}
+
+.group {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.2rem;
+}
+
+.note {
+  font-size: 0.78rem;
+  margin: 0 0 0.4rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stray {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+.pid {
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.when {
+  font-size: 0.75rem;
+}
+
+.stray button {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 0.6rem;
+  }
+
+  .head {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* On a phone the terminal is the page; the description is not worth the rows it costs. */
+  .head .sub {
+    display: none;
+  }
+
+  .tab {
+    max-width: 9rem;
+  }
+}

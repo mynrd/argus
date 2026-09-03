@@ -16,6 +16,9 @@ import {
   PortEntry,
   PortIdentity,
   QualityLevel,
+  StrayTerminal,
+  TerminalEntry,
+  TerminalListing,
   ReleaseKeysResult,
   SendKeyResult,
   WindowListItem,
@@ -455,6 +458,50 @@ export class ArgusService {
         title: null,
       }
     );
+  }
+
+  /**
+   * Every terminal on the host, plus any marked shell Windows still shows that the terminal host
+   * has lost track of.
+   *
+   * The terminals themselves live in a separate process (Argus.TerminalHost), which is why this
+   * list survives the server restarting - and why an empty list here means "none open", not
+   * "the server just started".
+   */
+  async listTerminals(): Promise<TerminalListing> {
+    return (await this.get<TerminalListing>('/api/terminals')) ?? { terminals: [], strays: [] };
+  }
+
+  /**
+   * Opens another terminal. The size is what the page will draw it at, so the shell knows its
+   * width before it prints its first prompt rather than after the first resize.
+   */
+  async openTerminal(cols: number, rows: number, cwd?: string): Promise<TerminalEntry | undefined> {
+    return this.send<TerminalEntry>('POST', '/api/terminals', { cols, rows, cwd: cwd ?? null });
+  }
+
+  /** Ends a terminal and everything running in it. */
+  async killTerminal(terminalId: string): Promise<void> {
+    await this.send('DELETE', `/api/terminals/${encodeURIComponent(terminalId)}`);
+  }
+
+  /** Sets a tab label, or clears it with an empty string so the tab falls back to "Terminal N". */
+  async renameTerminal(terminalId: string, name: string): Promise<void> {
+    await this.send('POST', `/api/terminals/${encodeURIComponent(terminalId)}/name`, { name });
+  }
+
+  /** Force-kills a stray by pid. There is no pty left to close, so this goes through taskkill. */
+  async killStrayTerminal(stray: StrayTerminal): Promise<void> {
+    await this.send('DELETE', `/api/terminals/strays/${stray.pid}`);
+  }
+
+  /**
+   * The WebSocket carrying one terminal both ways. Same origin, so the session cookie rides the
+   * upgrade and no token has to be passed here.
+   */
+  terminalSocketUrl(terminalId: string): string {
+    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${scheme}://${window.location.host}/ws/terminal/${encodeURIComponent(terminalId)}`;
   }
 
   /** No path means the root listing, and an empty query string would not say that. */
